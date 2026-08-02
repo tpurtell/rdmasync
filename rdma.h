@@ -32,7 +32,7 @@ extern int source_io_mode_explicit;
 extern int disk_read_size;
 extern int disk_read_size_explicit;
 extern OFF_T synthetic_file_size;
-extern int synthetic_discard;
+extern int rdma_discard;
 
 void rdma_set_peer_capable(int capable);
 int rdma_peer_is_capable(void);

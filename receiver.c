@@ -809,7 +809,7 @@ int recv_files(int f_in, int f_out, char *local_name)
 
 		remember_initial_stats();
 
-		if (synthetic_discard) {
+		if (rdma_discard) {
 			/* Benchmark-only: consume the complete literal/token stream while
 			 * deliberately leaving the named destination untouched. */
 			discard_receive_data(f_in, file);

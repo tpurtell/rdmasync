@@ -1438,6 +1438,12 @@ struct file_struct *make_file(const char *fname, struct file_list *flist,
 		}
 		st.st_size = synthetic_file_size;
 	}
+	if (rdma_discard && am_sender && !S_ISREG(st.st_mode)) {
+		rprintf(FERROR_XFER,
+			"--rdma-discard source is not a regular file: %s\n",
+			full_fname(fname));
+		exit_cleanup(RERR_SYNTAX);
+	}
 
 #ifdef ST_MTIME_NSEC
 	{

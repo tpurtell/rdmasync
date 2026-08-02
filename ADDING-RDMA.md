@@ -131,8 +131,8 @@ RDMA policy defaults to `auto` for SSH transfers:
 - `--rdma-show-config`: show one concise negotiated/fallback configuration
   line even when normal output would hide it.
 - `--rdma-no-config`: suppress that line even in non-quiet output.
-- `--rdma-discard`: benchmark-only receiver discard; requires a synthetic
-  source and leaves the named destination untouched.
+- `--rdma-discard`: benchmark-only receiver discard; accepts exactly one
+  regular-file source and leaves the named destination untouched.
 
 By default, a non-quiet invocation prints one line resembling:
 
@@ -171,11 +171,13 @@ when archive mode is selected, states the logical size, and forces a whole-file
 literal stream.  A directory or other non-regular placeholder is rejected.
 Pair it with a verified temporary destination so benchmark results can exclude
 source reads and independently characterize destination writes, or add
-`--rdma-discard` to omit destination I/O entirely.  Discard is explicit in the
-configuration line, never creates or replaces the named destination, and may
-be paired with the user's explicit `--checksum-choice=none` when isolating raw
-transport CPU.  Synthetic data uses no extra per-byte hash and is never a
-substitute for the actual content of a named ordinary file.
+`--rdma-discard` to omit destination I/O entirely.  Discard can also consume
+one ordinary regular-file source when measuring cached, mapped, or direct
+source access.  It is explicit in the configuration line, never creates or
+replaces the named destination, rejects directory sources and source removal,
+and may be paired with the user's explicit `--checksum-choice=none` when
+isolating raw transport CPU.  Synthetic data uses no extra per-byte hash and
+is never a substitute for the actual content of a named ordinary file.
 
 All size options accept rsync's normal size suffixes.  Invalid zero, overflow,
 alignment, unreasonable-memory, and unsupported combinations fail during

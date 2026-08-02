@@ -45,7 +45,7 @@ int source_io_mode_explicit = 0;
 int disk_read_size = RDMA_DEFAULT_DISK_READ_SIZE;
 int disk_read_size_explicit = 0;
 OFF_T synthetic_file_size = -1;
-int synthetic_discard = 0;
+int rdma_discard = 0;
 
 static int peer_capable;
 static int transport_active;
@@ -1083,7 +1083,7 @@ static void show_active_config(void)
 	rprintf(FWARNING, "; source=%s%s%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
 		: source_io_mode == SOURCE_IO_MAPPED ? "mapped" : "cached",
 		synthetic_file_size >= 0 ? ",synthetic" : "",
-		synthetic_discard ? ",discard" : "");
+		rdma_discard ? ",discard" : "");
 	rprintf(FWARNING, "\n");
 }
 
@@ -1284,7 +1284,7 @@ void rdma_recv_data(char *buf, size_t len)
 			+ path->stride * path->current_recv_slot);
 		available = path->current_recv_length - path->current_recv_offset;
 		amount = MIN(len, available);
-		if (!synthetic_discard)
+		if (!rdma_discard)
 			memcpy(buf, (char *)(header + 1) + path->current_recv_offset, amount);
 		path->current_recv_offset += amount;
 		transport.data_bytes += amount;

@@ -2329,14 +2329,15 @@ expand it.
 
 0.  `--rdma-discard`
 
-    Benchmark-only receiver mode.  It consumes the complete synthetic token
-    stream, including RDMA literal data when active, but does not create,
-    update, or verify the named destination file.  This makes transport-ceiling
-    tests independent of destination storage.  It requires
-    `--synthetic-file-data`, rejects `--remove-source-files`, and is reported as
-    `discard` in the RDMA configuration line.  The sender still honors rsync's
-    selected transfer checksum; specify `--checksum-choice=none` explicitly
-    when a test is intended to exclude that CPU work.
+    Benchmark-only receiver mode.  It consumes the complete token stream,
+    including RDMA literal data when active, but does not create, update, or
+    verify the named destination file.  This makes source and transport tests
+    independent of destination storage.  It requires exactly one regular-file
+    source and one destination, rejects `--remove-source-files`, and is reported
+    as `discard` in the RDMA configuration line.  It can be combined with
+    `--synthetic-file-data` to omit source I/O too.  The sender still honors
+    rsync's selected transfer checksum; specify `--checksum-choice=none`
+    explicitly when a test is intended to exclude that CPU work.
 
 0.  `--remote-option=OPTION`, `-M`
 
