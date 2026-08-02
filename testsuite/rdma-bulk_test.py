@@ -140,10 +140,14 @@ compressed = TODIR / 'compressed-fallback.bin'
 proc = run_rsync('-az', '--rdma=auto', f'--rsync-path={RSYNC_PEER}',
                  str(source), f'lh:{compressed}', capture_output=True)
 assert_same(source, compressed, label='compressed SSH fallback')
-if ('compression is enabled' not in output(proc)
-        or 'using rsync-over-SSH' not in output(proc)):
+compressed_output = output(proc)
+if (not any(reason in compressed_output for reason in
+            ('compression is enabled', 'peer does not advertise RDMA'))
+        or 'using rsync-over-SSH' not in compressed_output):
     test_fail(f"compressed auto mode did not explain its fallback\n{output(proc)}")
-expect_failure('compression is enabled', '-az', '--rdma=required',
+expect_failure(('compression is enabled', 'RDMA required but unavailable',
+                '--rdma=required was specified'),
+               '-az', '--rdma=required',
                f'--rsync-path={RSYNC_PEER}', str(source),
                f'lh:{TODIR / "compressed-required.bin"}')
 
