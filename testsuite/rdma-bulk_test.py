@@ -133,6 +133,31 @@ expect_failure(('RDMA required but unavailable',
                f'--rsync-path={RSYNC_PEER}', str(source),
                f'lh:{TODIR / "required.bin"}')
 
+# Compression is deliberately left on the ordinary rsync stream until a
+# compressed-byte diversion exists.  Auto warns and succeeds; required fails
+# before any literal byte is sent.
+compressed = TODIR / 'compressed-fallback.bin'
+proc = run_rsync('-az', '--rdma=auto', f'--rsync-path={RSYNC_PEER}',
+                 str(source), f'lh:{compressed}', capture_output=True)
+assert_same(source, compressed, label='compressed SSH fallback')
+if ('compression is enabled' not in output(proc)
+        or 'using rsync-over-SSH' not in output(proc)):
+    test_fail(f"compressed auto mode did not explain its fallback\n{output(proc)}")
+expect_failure('compression is enabled', '-az', '--rdma=required',
+               f'--rsync-path={RSYNC_PEER}', str(source),
+               f'lh:{TODIR / "compressed-required.bin"}')
+
+# Hiding the normal configuration line must never hide an actionable fallback
+# warning.
+hidden = TODIR / 'hidden-config-fallback.bin'
+proc = run_rsync('-a', '--rdma=auto', '--rdma-no-config',
+                 '--rdma-device=rdmasync-no-such-device',
+                 f'--rsync-path={RSYNC_PEER}', str(source), f'lh:{hidden}',
+                 capture_output=True)
+assert_same(source, hidden, label='fallback warning with hidden config')
+if 'using rsync-over-SSH' not in output(proc):
+    test_fail('--rdma-no-config suppressed an RDMA fallback warning')
+
 # Discard is propagated to whichever side receives.  Exercise an ordinary
 # source on push and pull so source-I/O benchmarks do not require synthetic
 # input.  Neither transfer may create or replace the named destination.

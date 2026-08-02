@@ -184,6 +184,35 @@ static struct {
 
 static char last_error[RDMA_REASON_LEN];
 
+/* Test-only failure seams used by support/rdma-integration.sh.  They are
+ * environment variables rather than user options so production negotiation
+ * and the remote command line remain unchanged. */
+static int test_fail_stage(const char *stage)
+{
+	const char *value = getenv("RSYNC_TEST_RDMA_FAIL");
+	return value && strcmp(value, stage) == 0;
+}
+
+static uint64_t test_fail_after_bytes(void)
+{
+	static uint64_t value;
+	static int initialized;
+	const char *arg;
+	char *end;
+	unsigned long long parsed;
+
+	if (initialized)
+		return value;
+	initialized = 1;
+	if (am_server || !(arg = getenv("RSYNC_TEST_RDMA_FAIL_AFTER_BYTES")) || !*arg)
+		return 0;
+	errno = 0;
+	parsed = strtoull(arg, &end, 10);
+	if (!errno && !*end && parsed > 0)
+		value = (uint64_t)parsed;
+	return value;
+}
+
 static void mark_data_start(void)
 {
 	if (!transport.data_started) {
@@ -383,6 +412,10 @@ static int make_listener(struct rdma_candidate *candidate, int ordinal)
 	struct sockaddr_in addr;
 	socklen_t addrlen = sizeof addr;
 	int fd, one = 1, port = rdma_bootstrap_port ? rdma_bootstrap_port + ordinal : 0;
+	if (test_fail_stage("listener")) {
+		set_error("test-injected RDMA bootstrap listener failure");
+		return -1;
+	}
 
 	if (port > 65535) {
 		set_error("RDMA bootstrap port range exceeds 65535");
@@ -677,6 +710,10 @@ static int connect_bootstrap(const struct rdma_candidate *local,
 	struct sockaddr_in remote_addr, local_addr;
 	int fd, flags, ret, error = 0;
 	socklen_t error_len = sizeof error;
+	if (test_fail_stage("connect")) {
+		set_error("test-injected RDMA bootstrap connection failure");
+		return -1;
+	}
 
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		set_error("cannot create bootstrap socket: %s", strerror(errno));
@@ -1038,12 +1075,20 @@ static int exchange_qp(struct rdma_path *path, int bootstrap_fd, int path_index)
 		set_error("RDMA QP bootstrap cookie mismatch on path %d", path_index + 1);
 		return -1;
 	}
+	if (test_fail_stage("qp")) {
+		set_error("test-injected RDMA QP transition failure");
+		return -1;
+	}
 	if (modify_qp_rtr_rts(path, remote_qpn, remote_psn, remote_mtu, &remote_gid, local_psn)) {
 		set_error("cannot transition RC QP on %s to ready", path->candidate.ibdev);
 		return -1;
 	}
 	if ((am_sender ? post_probe_send(path, path_index) : receive_probe(path, path_index)) < 0) {
 		set_error("RDMA fabric probe failed on %s", path->candidate.ibdev);
+		return -1;
+	}
+	if (test_fail_stage("ready")) {
+		set_error("test-injected RDMA ready exchange failure");
 		return -1;
 	}
 	if (socket_write_all(bootstrap_fd, &ready, 1)
@@ -1170,8 +1215,14 @@ static int post_data_send(struct rdma_path *path, const char *buf,
 	struct ibv_sge sge;
 	struct ibv_wc wc;
 	unsigned int slot;
+	uint64_t fail_after = test_fail_after_bytes();
 
 	mark_data_start();
+	if (fail_after && transport.data_bytes >= fail_after) {
+		set_error("test-injected RDMA data failure after %s bytes",
+			do_big_num(transport.data_bytes, 0, NULL));
+		return -1;
+	}
 	memset(&wc, 0, sizeof wc);
 	if (path->outstanding >= rdma_queue_depth) {
 		if (poll_completion(path, &wc, RDMA_BOOTSTRAP_TIMEOUT_MS) || wc.opcode != IBV_WC_SEND) {
