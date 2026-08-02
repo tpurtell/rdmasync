@@ -268,6 +268,8 @@ char *map_ptr(struct map_struct *map, OFF_T offset, int32 len)
 		return map->p + (offset - map->p_offset);
 
 	if (map->synthetic) {
+		static char counter_pattern[256];
+		static int counter_pattern_ready;
 		int32 j;
 		window_start = offset - ALIGNED_OVERSHOOT(offset);
 		window_size = map->def_window_size;
@@ -279,8 +281,18 @@ char *map_ptr(struct map_struct *map, OFF_T offset, int32 len)
 			map->p = realloc_array(map->p, char, window_size);
 			map->p_size = window_size;
 		}
-		for (j = 0; j < window_size; j++)
-			map->p[j] = (char)((window_start + j) & 0xff);
+		if (!counter_pattern_ready) {
+			for (j = 0; j < (int32)sizeof counter_pattern; j++)
+				counter_pattern[j] = (char)j;
+			counter_pattern_ready = 1;
+		}
+		for (j = 0; j < window_size; ) {
+			int32 pattern_offset = (int32)((window_start + j) & 0xff);
+			int32 amount = MIN(window_size - j,
+				(int32)sizeof counter_pattern - pattern_offset);
+			memcpy(map->p + j, counter_pattern + pattern_offset, amount);
+			j += amount;
+		}
 		map->p_offset = window_start;
 		map->p_len = window_size;
 		return map->p + (offset - window_start);

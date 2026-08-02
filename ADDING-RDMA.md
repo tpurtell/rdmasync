@@ -131,11 +131,13 @@ RDMA policy defaults to `auto` for SSH transfers:
 - `--rdma-show-config`: show one concise negotiated/fallback configuration
   line even when normal output would hide it.
 - `--rdma-no-config`: suppress that line even in non-quiet output.
+- `--rdma-discard`: benchmark-only receiver discard; requires a synthetic
+  source and leaves the named destination untouched.
 
 By default, a non-quiet invocation prints one line resembling:
 
 ```text
-rdmasync: RDMA active: 2 rails, 256 KiB chunks, depth 64, 32 MiB registered; rocep1s0f0/10.55.0.1 + roceP2p1s0f0/10.55.0.5
+rdmasync: RDMA active: 2 rails, 2 MiB chunks, depth 8, 32 MiB registered; rocep1s0f0/10.55.0.1 + roceP2p1s0f0/10.55.0.5
 ```
 
 Fallback is a warning with the concrete reason, for example:
@@ -168,25 +170,29 @@ CLI contract accepts exactly one named regular-file placeholder, including
 when archive mode is selected, states the logical size, and forces a whole-file
 literal stream.  A directory or other non-regular placeholder is rejected.
 Pair it with a verified temporary destination so benchmark results can exclude
-source reads and independently characterize destination writes.  Synthetic
-data uses no extra per-byte hash and is never a substitute for the actual
-content of a named ordinary file.
+source reads and independently characterize destination writes, or add
+`--rdma-discard` to omit destination I/O entirely.  Discard is explicit in the
+configuration line, never creates or replaces the named destination, and may
+be paired with the user's explicit `--checksum-choice=none` when isolating raw
+transport CPU.  Synthetic data uses no extra per-byte hash and is never a
+substitute for the actual content of a named ordinary file.
 
 All size options accept rsync's normal size suffixes.  Invalid zero, overflow,
 alignment, unreasonable-memory, and unsupported combinations fail during
 option parsing before opening an RDMA endpoint.
 
-## Initial defaults to evaluate
+## Evaluated defaults
 
-These are experiment starting points, not final claims:
+The transport sweep recorded in
+`benchmarks/RDMA-QUEUE-AND-CHUNK-TUNING.md` selected:
 
 | Parameter | Starting value | Bounded memory at two rails |
 | --- | ---: | ---: |
-| RDMA chunk size | 256 KiB | |
-| queue depth | 64 per rail | 32 MiB payload plus headers |
+| RDMA chunk size | 2 MiB | |
+| queue depth | 8 per rail | 32 MiB payload plus headers |
 | rails | auto (maximum 2) | |
-| disk read size | 8 MiB | one or two reusable staging regions |
-| source I/O | cached | dependent on benchmark |
+| disk read size | 8 MiB | one reusable staging region |
+| source I/O | cached | retained pending storage-path results |
 
 The tuning goal is the smallest queue and chunk combination that reaches the
 throughput plateau.  Increasing registered memory after throughput is within

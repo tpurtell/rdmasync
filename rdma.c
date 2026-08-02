@@ -45,6 +45,7 @@ int source_io_mode_explicit = 0;
 int disk_read_size = RDMA_DEFAULT_DISK_READ_SIZE;
 int disk_read_size_explicit = 0;
 OFF_T synthetic_file_size = -1;
+int synthetic_discard = 0;
 
 static int peer_capable;
 static int transport_active;
@@ -152,6 +153,7 @@ struct rdma_path {
 	struct ibv_qp *qp;
 	struct ibv_mr *mr;
 	char *ring;
+	short *synthetic_phase;
 	size_t stride;
 	int outstanding;
 	unsigned int next_slot;
@@ -168,6 +170,11 @@ static struct {
 	int endpoint_count;
 	uint64_t send_seq;
 	uint64_t recv_seq;
+	uint64_t data_bytes;
+	uint64_t data_messages;
+	int data_started;
+	struct timespec data_start;
+	struct timespec data_end;
 	uchar cookie[RDMA_COOKIE_LEN];
 	struct rdma_candidate candidates[RDMA_MAX_CANDIDATES];
 	struct rdma_endpoint endpoints[RDMA_MAX_CANDIDATES];
@@ -176,6 +183,20 @@ static struct {
 } transport;
 
 static char last_error[RDMA_REASON_LEN];
+
+static void mark_data_start(void)
+{
+	if (!transport.data_started) {
+		clock_gettime(CLOCK_MONOTONIC, &transport.data_start);
+		transport.data_started = 1;
+	}
+}
+
+static void mark_data_end(void)
+{
+	if (transport.data_started)
+		clock_gettime(CLOCK_MONOTONIC, &transport.data_end);
+}
 
 static void set_error(const char *fmt, ...)
 {
@@ -851,6 +872,7 @@ static void destroy_path(struct rdma_path *path)
 		ibv_dealloc_pd(path->pd);
 	if (path->context)
 		ibv_close_device(path->context);
+	free(path->synthetic_phase);
 	free(path->ring);
 	memset(path, 0, sizeof *path);
 	path->current_recv_slot = -1;
@@ -879,6 +901,9 @@ static int setup_path_resources(struct rdma_path *path,
 		return -1;
 	}
 	memset(path->ring, 0, total);
+	path->synthetic_phase = new_array(short, rdma_queue_depth);
+	memset(path->synthetic_phase, 0xff,
+		(size_t)rdma_queue_depth * sizeof *path->synthetic_phase);
 	if (!(path->context = open_verbs_device(candidate->ibdev))
 	 || ibv_query_device(path->context, &device_attr)
 	 || rdma_queue_depth > (int)device_attr.max_qp_wr
@@ -1055,9 +1080,10 @@ static void show_active_config(void)
 		rprintf(FWARNING, "%s%s/%s->%s/%s", i ? " + " : "",
 			local->ibdev, local->address, remote->ibdev, remote->address);
 	}
-	rprintf(FWARNING, "; source=%s%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
+	rprintf(FWARNING, "; source=%s%s%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
 		: source_io_mode == SOURCE_IO_MAPPED ? "mapped" : "cached",
-		synthetic_file_size >= 0 ? ",synthetic" : "");
+		synthetic_file_size >= 0 ? ",synthetic" : "",
+		synthetic_discard ? ",discard" : "");
 	rprintf(FWARNING, "\n");
 }
 
@@ -1099,7 +1125,39 @@ int rdma_activate(void)
 	return 1;
 }
 
-static int post_data_send(struct rdma_path *path, const char *buf, size_t len, uint64_t seq)
+static void fill_counter_data(char *buf, OFF_T offset, size_t len)
+{
+	static char pattern[256];
+	static int pattern_ready;
+	size_t initial, done;
+	int start = offset & 0xff;
+
+	if (!pattern_ready) {
+		int i;
+		for (i = 0; i < (int)sizeof pattern; i++)
+			pattern[i] = (char)i;
+		pattern_ready = 1;
+	}
+	initial = MIN(len, sizeof pattern - start);
+	memcpy(buf, pattern + start, initial);
+	done = initial;
+	if (done < len) {
+		/* Complete exactly one 256-byte cycle before doubling. */
+		initial = MIN(len - done, sizeof pattern - done);
+		memcpy(buf + done, pattern, initial);
+		done += initial;
+	}
+	/* The prefix now contains a full periodic cycle.  Doubling it lets libc
+	 * use wide copies instead of invoking a byte-oriented generator. */
+	while (done < len) {
+		size_t amount = MIN(done, len - done);
+		memcpy(buf + done, buf, amount);
+		done += amount;
+	}
+}
+
+static int post_data_send(struct rdma_path *path, const char *buf,
+			  OFF_T synthetic_offset, size_t len, uint64_t seq)
 {
 	struct rdma_data_header *header;
 	struct ibv_send_wr wr, *bad;
@@ -1107,6 +1165,7 @@ static int post_data_send(struct rdma_path *path, const char *buf, size_t len, u
 	struct ibv_wc wc;
 	unsigned int slot;
 
+	mark_data_start();
 	memset(&wc, 0, sizeof wc);
 	if (path->outstanding >= rdma_queue_depth) {
 		if (poll_completion(path, &wc, RDMA_BOOTSTRAP_TIMEOUT_MS) || wc.opcode != IBV_WC_SEND) {
@@ -1119,7 +1178,19 @@ static int post_data_send(struct rdma_path *path, const char *buf, size_t len, u
 	slot = path->next_slot++ % rdma_queue_depth;
 	header = (struct rdma_data_header *)(path->ring + path->stride * slot);
 	encode_header(header, RDMA_DATA_MAGIC, seq, len);
-	memcpy(header + 1, buf, len);
+	if (buf)
+		memcpy(header + 1, buf, len);
+	else {
+		short phase = synthetic_offset & 0xff;
+		/* SEND does not modify its source buffer.  A ring slot whose next
+		 * synthetic chunk has the same counter phase is already valid, so a
+		 * long benchmark reuses its prefilled registered payload just like
+		 * perftest reuses an MR. */
+		if (path->synthetic_phase[slot] != phase) {
+			fill_counter_data((char *)(header + 1), synthetic_offset, len);
+			path->synthetic_phase[slot] = phase;
+		}
+	}
 	memset(&sge, 0, sizeof sge);
 	sge.addr = (uintptr_t)header;
 	sge.length = sizeof *header + len;
@@ -1136,6 +1207,8 @@ static int post_data_send(struct rdma_path *path, const char *buf, size_t len, u
 		return -1;
 	}
 	path->outstanding++;
+	transport.data_bytes += len;
+	transport.data_messages++;
 	return 0;
 }
 
@@ -1144,7 +1217,7 @@ void rdma_send_data(const char *buf, size_t len)
 	while (len) {
 		size_t amount = MIN(len, (size_t)rdma_chunk_size);
 		struct rdma_path *path = &transport.paths[transport.send_seq % transport.rail_count];
-		if (post_data_send(path, buf, amount, transport.send_seq) < 0) {
+		if (post_data_send(path, buf, 0, amount, transport.send_seq) < 0) {
 			rprintf(FERROR, "rdmasync: RDMA data send failed after activation: %s\n",
 				last_error[0] ? last_error : "unknown verbs error");
 			exit_cleanup(RERR_STREAMIO);
@@ -1156,12 +1229,30 @@ void rdma_send_data(const char *buf, size_t len)
 	}
 }
 
+void rdma_send_synthetic(OFF_T offset, size_t len)
+{
+	while (len) {
+		size_t amount = MIN(len, (size_t)rdma_chunk_size);
+		struct rdma_path *path = &transport.paths[transport.send_seq % transport.rail_count];
+		if (post_data_send(path, NULL, offset, amount, transport.send_seq) < 0) {
+			rprintf(FERROR, "rdmasync: synthetic RDMA data send failed after activation: %s\n",
+				last_error[0] ? last_error : "unknown verbs error");
+			exit_cleanup(RERR_STREAMIO);
+		}
+		transport.send_seq++;
+		stats.total_written += amount;
+		offset += amount;
+		len -= amount;
+	}
+}
+
 static int begin_receive_message(struct rdma_path *path, uint64_t expected_seq)
 {
 	struct ibv_wc wc;
 	struct rdma_data_header *header;
 	uint32 length;
 
+	mark_data_start();
 	if (poll_completion(path, &wc, RDMA_BOOTSTRAP_TIMEOUT_MS)
 	 || wc.opcode != IBV_WC_RECV || wc.wr_id >= (uint64_t)rdma_queue_depth
 	 || wc.byte_len < sizeof *header)
@@ -1174,6 +1265,7 @@ static int begin_receive_message(struct rdma_path *path, uint64_t expected_seq)
 	path->current_recv_slot = (int)wc.wr_id;
 	path->current_recv_length = length;
 	path->current_recv_offset = 0;
+	transport.data_messages++;
 	return 0;
 }
 
@@ -1192,8 +1284,10 @@ void rdma_recv_data(char *buf, size_t len)
 			+ path->stride * path->current_recv_slot);
 		available = path->current_recv_length - path->current_recv_offset;
 		amount = MIN(len, available);
-		memcpy(buf, (char *)(header + 1) + path->current_recv_offset, amount);
+		if (!synthetic_discard)
+			memcpy(buf, (char *)(header + 1) + path->current_recv_offset, amount);
 		path->current_recv_offset += amount;
+		transport.data_bytes += amount;
 		stats.total_read += amount;
 		buf += amount;
 		len -= amount;
@@ -1235,6 +1329,16 @@ void rdma_cleanup(void)
 			}
 		}
 	}
+	mark_data_end();
+	if (transport_active && transport.data_bytes && rdma_config_mode == 1 && !am_server) {
+		double seconds = transport.data_end.tv_sec - transport.data_start.tv_sec
+			+ (transport.data_end.tv_nsec - transport.data_start.tv_nsec) / 1000000000.0;
+		double gbps = seconds > 0 ? transport.data_bytes * 8.0 / seconds / 1000000000.0 : 0;
+		rprintf(FWARNING,
+			"rdmasync: RDMA data: %s bytes in %.6f seconds, %.2f Gb/s, %s messages\n",
+			do_big_num(transport.data_bytes, 0, NULL), seconds, gbps,
+			do_big_num(transport.data_messages, 0, NULL));
+	}
 	destroy_all_paths();
 	close_listeners();
 	transport.owner = transport.preflight_ok = 0;
@@ -1252,10 +1356,26 @@ int rdma_literal_chunk_size(void)
 	return transport_active ? rdma_chunk_size : CHUNK_SIZE;
 }
 
+int rdma_control_flush_interval(void)
+{
+#ifdef SUPPORT_RDMA
+	return transport_active
+		? MAX(1, rdma_queue_depth / 2) : 1;
+#else
+	return 1;
+#endif
+}
+
 #ifndef SUPPORT_RDMA
 void rdma_send_data(UNUSED(const char *buf), UNUSED(size_t len))
 {
 	rprintf(FERROR, "rdmasync: internal error: RDMA send on inactive transport\n");
+	exit_cleanup(RERR_STREAMIO);
+}
+
+void rdma_send_synthetic(UNUSED(OFF_T offset), UNUSED(size_t len))
+{
+	rprintf(FERROR, "rdmasync: internal error: synthetic RDMA send on inactive transport\n");
 	exit_cleanup(RERR_STREAMIO);
 }
 

@@ -319,12 +319,14 @@ static void simple_send_token(int f, int32 token, struct map_struct *buf, OFF_T 
 		while (len < n) {
 			int32 n1 = MIN(rdma_literal_chunk_size(), n-len);
 			write_int(f, n1);
-			if (rdma_is_active())
+			if (rdma_is_active() && buf->synthetic)
+				rdma_send_synthetic(offset + len, n1);
+			else if (rdma_is_active())
 				rdma_send_data(map_ptr(buf, offset+len, n1), n1);
 			else
 				write_buf(f, map_ptr(buf, offset+len, n1), n1);
 			if (rdma_is_active()
-			 && ++rdma_control_pending >= MAX(1, rdma_queue_depth / 2)) {
+			 && ++rdma_control_pending >= rdma_control_flush_interval()) {
 				io_flush(NORMAL_FLUSH);
 				rdma_control_pending = 0;
 			}

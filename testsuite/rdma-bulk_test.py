@@ -90,6 +90,8 @@ expect_failure('not a regular file', '-a', '--synthetic-file-data=1M',
                str(directory), str(TODIR / 'bad-directory'))
 expect_failure('conflicts', '--synthetic-file-data=1M', '--mapped',
                str(placeholder), str(TODIR / 'bad-combination'))
+expect_failure('requires --synthetic-file-data', '--rdma-discard',
+               str(placeholder), str(TODIR / 'bad-discard'))
 
 # Bounds and enums are rejected during option parsing, before negotiation.
 expect_failure('--rdma mode must be', '--rdma=maybe', str(source),
@@ -127,4 +129,22 @@ expect_failure(('RDMA required but unavailable',
                f'--rsync-path={RSYNC_PEER}', str(source),
                f'lh:{TODIR / "required.bin"}')
 
-print('rdma-bulk: source modes, synthetic data, validation, and fallback verified')
+# Discard is propagated to whichever side receives.  Neither a push nor a
+# pull may create or replace the destination named on that receiver.
+discard_push = TODIR / 'discard-push.bin'
+discard_push.write_bytes(b'push sentinel')
+run_rsync('-a', '--no-rdma', '--synthetic-file-data=1M', '--rdma-discard',
+          f'--rsync-path={RSYNC_PEER}', str(placeholder),
+          f'lh:{discard_push}')
+if discard_push.read_bytes() != b'push sentinel':
+    test_fail('--rdma-discard push modified its named destination')
+
+discard_pull = TODIR / 'discard-pull.bin'
+discard_pull.write_bytes(b'pull sentinel')
+run_rsync('-a', '--no-rdma', '--synthetic-file-data=1M', '--rdma-discard',
+          f'--rsync-path={RSYNC_PEER}', f'lh:{placeholder}',
+          str(discard_pull))
+if discard_pull.read_bytes() != b'pull sentinel':
+    test_fail('--rdma-discard pull modified its named destination')
+
+print('rdma-bulk: source modes, synthetic/discard, validation, and fallback verified')

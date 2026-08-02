@@ -837,6 +837,7 @@ static struct poptOption long_options[] = {
   {"rdma-device",      0,  POPT_ARG_STRING, &rdma_device_filter, 0, 0, 0 },
   {"rdma-show-config", 0,  POPT_ARG_VAL,    &rdma_config_mode, 1, 0, 0 },
   {"rdma-no-config",   0,  POPT_ARG_VAL,    &rdma_config_mode, 0, 0, 0 },
+  {"rdma-discard",     0,  POPT_ARG_VAL,    &synthetic_discard, 1, 0, 0 },
   {"cached",           0,  POPT_ARG_NONE,   0, OPT_CACHED, 0, 0 },
   {"uncached",         0,  POPT_ARG_NONE,   0, OPT_UNCACHED, 0, 0 },
   {"mapped",           0,  POPT_ARG_NONE,   0, OPT_MAPPED, 0, 0 },
@@ -2099,6 +2100,16 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 			"--synthetic-file-data conflicts with --uncached, --mapped, and --disk-read-size\n");
 		goto cleanup;
 	}
+	if (synthetic_discard && synthetic_file_size < 0) {
+		snprintf(err_buf, sizeof err_buf,
+			"--rdma-discard requires --synthetic-file-data\n");
+		goto cleanup;
+	}
+	if (synthetic_discard && remove_source_files) {
+		snprintf(err_buf, sizeof err_buf,
+			"--rdma-discard conflicts with --remove-source-files\n");
+		goto cleanup;
+	}
 
 	if (old_style_args < 0) {
 		if (!am_server && protect_args <= 0 && (arg = getenv("RSYNC_OLD_ARGS")) != NULL && *arg) {
@@ -3043,6 +3054,16 @@ void server_options(char **args, int *argc_p)
 				goto oom;
 			args[ac++] = arg;
 		}
+	}
+	/* A remote receiver needs the explicit discard contract and logical
+	 * synthetic size.  The latter is inert outside a sending process but lets
+	 * both sides validate that discard was not enabled for ordinary data. */
+	if (synthetic_discard && am_sender) {
+		args[ac++] = "--rdma-discard";
+		if (asprintf(&arg, "--synthetic-file-data=%s",
+			    do_big_num(synthetic_file_size, 0, NULL)) < 0)
+			goto oom;
+		args[ac++] = arg;
 	}
 
 	if (partial_dir && am_sender) {

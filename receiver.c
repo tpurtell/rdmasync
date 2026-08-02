@@ -403,7 +403,11 @@ static int receive_data(int f_in, char *fname_r, int fd_r, OFF_T size_r,
 			stats.literal_data += i;
 			cleanup_got_literal = 1;
 
-			sum_update(data, i);
+			/* The explicit benchmark discard path has no output and no
+			 * verification result.  Do not burn a CPU digest that will be
+			 * ignored; the sender still follows the user's checksum choice. */
+			if (fd != -1)
+				sum_update(data, i);
 
 			if (fd != -1 && write_file(fd, 0, offset, data, i) != i)
 				goto report_write_error;
@@ -804,6 +808,19 @@ int recv_files(int f_in, int f_out, char *local_name)
 		}
 
 		remember_initial_stats();
+
+		if (synthetic_discard) {
+			/* Benchmark-only: consume the complete literal/token stream while
+			 * deliberately leaving the named destination untouched. */
+			discard_receive_data(f_in, file);
+			log_item(log_code, file, iflags, NULL);
+			file->flags |= FLAG_FILE_SENT;
+			cleanup_disable();
+			if (remove_source_files || inc_recurse
+			 || (preserve_hard_links && F_IS_HLINKED(file)))
+				send_msg_success(fname, ndx);
+			continue;
+		}
 
 		if (!do_xfers) { /* log the transfer */
 			log_item(FCLIENT, file, iflags, NULL);

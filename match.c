@@ -21,6 +21,7 @@
 
 #include "rsync.h"
 #include "inums.h"
+#include "rdma.h"
 
 extern int checksum_seed;
 extern int append_mode;
@@ -145,9 +146,11 @@ static void matched(int f, struct sum_struct *s, struct map_struct *buf, OFF_T o
 		n += s->sums[i].len;
 	}
 
-	for (j = 0; j < n; j += CHUNK_SIZE) {
-		int32 n1 = MIN(CHUNK_SIZE, n - j);
-		sum_update(map_ptr(buf, last_match + j, n1), n1);
+	if (xfer_sum_len) {
+		for (j = 0; j < n; j += CHUNK_SIZE) {
+			int32 n1 = MIN(CHUNK_SIZE, n - j);
+			sum_update(map_ptr(buf, last_match + j, n1), n1);
+		}
 	}
 
 	if (i >= 0)
@@ -434,8 +437,9 @@ void match_sums(int f, struct sum_struct *s, struct map_struct *buf, OFF_T len)
 			rprintf(FINFO,"done hash search\n");
 	} else {
 		OFF_T j;
+		int32 literal_step = rdma_literal_chunk_size();
 		/* by doing this in pieces we avoid too many seeks */
-		for (j = last_match + CHUNK_SIZE; j < len; j += CHUNK_SIZE)
+		for (j = last_match + literal_step; j < len; j += literal_step)
 			matched(f, s, buf, j, -2);
 		matched(f, s, buf, len, -1);
 	}

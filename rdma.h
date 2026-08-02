@@ -15,8 +15,8 @@ enum source_io_mode {
 	SOURCE_IO_MAPPED = 2
 };
 
-#define RDMA_DEFAULT_CHUNK_SIZE (256 * 1024)
-#define RDMA_DEFAULT_QUEUE_DEPTH 64
+#define RDMA_DEFAULT_CHUNK_SIZE (2 * 1024 * 1024)
+#define RDMA_DEFAULT_QUEUE_DEPTH 8
 #define RDMA_DEFAULT_DISK_READ_SIZE (8 * 1024 * 1024)
 
 extern int rdma_policy;
@@ -32,6 +32,7 @@ extern int source_io_mode_explicit;
 extern int disk_read_size;
 extern int disk_read_size_explicit;
 extern OFF_T synthetic_file_size;
+extern int synthetic_discard;
 
 void rdma_set_peer_capable(int capable);
 int rdma_peer_is_capable(void);
@@ -39,7 +40,9 @@ int rdma_preflight(int f_in, int f_out);
 int rdma_activate(void);
 int rdma_is_active(void);
 int rdma_literal_chunk_size(void);
+int rdma_control_flush_interval(void);
 void rdma_send_data(const char *buf, size_t len);
+void rdma_send_synthetic(OFF_T offset, size_t len);
 void rdma_recv_data(char *buf, size_t len);
 void rdma_after_receiver_fork(int keep_transport);
 void rdma_cleanup(void);

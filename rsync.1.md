@@ -498,6 +498,7 @@ has its own detailed description later in this manpage.
 --rdma-device=LIST       prefer local RDMA device/netdevice names
 --rdma-show-config       always show the RDMA configuration line
 --rdma-no-config         suppress the RDMA configuration line
+--rdma-discard           benchmark by leaving the destination untouched
 --cached                 read source files through the page cache
 --uncached               read source files using aligned O_DIRECT I/O
 --mapped                 read source files through windowed mmap
@@ -2263,7 +2264,7 @@ expand it.
 0.  `--rdma-chunk-size=SIZE`, `--rdma-queue-depth=NUM`
 
     Set the payload capacity of each registered ring slot and the number of
-    slots per rail.  The defaults are 256 KiB and 64.  The payload memory is
+    slots per rail.  The defaults are 2 MiB and 8.  The payload memory is
     approximately `rails * queue-depth * chunk-size` on each endpoint, plus a
     small header per slot.  Chunk size must be a multiple of 64 bytes from 4
     KiB through 8 MiB; depth must be from 2 through 4096.
@@ -2325,6 +2326,17 @@ expand it.
     or discard-backed destination when measuring the network independently of
     destination storage.  It conflicts with `--uncached`, `--mapped`, and
     `--disk-read-size` because no source read occurs.
+
+0.  `--rdma-discard`
+
+    Benchmark-only receiver mode.  It consumes the complete synthetic token
+    stream, including RDMA literal data when active, but does not create,
+    update, or verify the named destination file.  This makes transport-ceiling
+    tests independent of destination storage.  It requires
+    `--synthetic-file-data`, rejects `--remove-source-files`, and is reported as
+    `discard` in the RDMA configuration line.  The sender still honors rsync's
+    selected transfer checksum; specify `--checksum-choice=none` explicitly
+    when a test is intended to exclude that CPU work.
 
 0.  `--remote-option=OPTION`, `-M`
 
