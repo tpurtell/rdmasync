@@ -1,0 +1,16 @@
+topology,mode,rep,path0_gbps,path1_gbps,aggregate_gbps
+ostrich-dodo,single,1,109.30,,109.30
+ostrich-dodo,single,2,109.27,,109.27
+ostrich-dodo,single,3,109.28,,109.28
+ostrich-dodo,single,4,109.30,,109.30
+ostrich-dodo,single,5,109.27,,109.27
+ostrich-dodo,dual,1,98.03,98.03,196.06
+ostrich-dodo,dual,2,98.03,98.03,196.06
+ostrich-dodo,dual,3,98.04,98.03,196.07
+ostrich-dodo,dual,4,98.03,98.03,196.06
+ostrich-dodo,dual,5,98.03,98.03,196.06
+raptor-ostrich,dual,1,94.82,64.92,159.74
+raptor-ostrich,dual,2,86.53,75.54,162.07
+raptor-ostrich,dual,3,67.10,84.75,151.85
+raptor-ostrich,dual,4,66.90,91.19,158.09
+raptor-ostrich,dual,5,76.00,86.98,162.98

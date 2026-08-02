@@ -1,0 +1,11 @@
+topology,rails,chunk,depth,rep,seconds,gbps,messages
+ostrich-dodo,1,2M,8,1,0.728288,94.36,4096
+ostrich-dodo,1,2M,8,2,0.678697,101.25,4096
+ostrich-dodo,1,2M,8,3,0.737703,93.15,4096
+ostrich-dodo,1,2M,8,4,0.717143,95.82,4096
+ostrich-dodo,1,2M,8,5,0.727252,94.49,4096
+ostrich-dodo,2,2M,8,1,0.416094,165.15,4096
+ostrich-dodo,2,2M,8,2,0.395447,173.78,4096
+ostrich-dodo,2,2M,8,3,0.412218,166.71,4096
+ostrich-dodo,2,2M,8,4,0.409750,167.71,4096
+ostrich-dodo,2,2M,8,5,0.396034,173.52,4096
