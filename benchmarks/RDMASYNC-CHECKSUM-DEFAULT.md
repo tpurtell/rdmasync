@@ -43,3 +43,17 @@ This is a rdmasync application default, not a wire-protocol change.  The
 selected checksum choice is passed to the peer, and an explicit
 `--rsync-path=rsync` remains available when interoperating with a standard
 rsync installation.
+
+## Verification
+
+The renamed amd64 build passed the complete protocol 32, 30, and 29 suites:
+106 passed with 9 expected platform skips in each configuration.  A native
+arm64 build on ostrich reported `RDMA-bulk` and passed 103 tests with 12
+expected platform skips.  The install/uninstall smoke test installed
+`rdmasync` and `rdmasync.1`, installed no `rsync` executable, and left no files
+after uninstall.
+
+A 64 MiB raptor-to-ostrich transfer was then run with no checksum option.  Its
+session output reported `Client checksum: none`, activated two RDMA rails, and
+the independently calculated SHA-256 values matched.  The temporary source
+and destination were removed after verification.
