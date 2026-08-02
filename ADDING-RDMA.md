@@ -161,9 +161,10 @@ The source-file access policy is independent of whether RDMA activates:
 - `--disk-read-size=SIZE`: controls cached and direct read-ahead/staging size;
   it is accepted but does not change mapped-window semantics.
 
-The modes are mutually exclusive.  The default remains a benchmark decision,
-not an assumption; until measurements say otherwise it is `--cached`, which
-has predictable cancellation and matches the kernel's normal page-cache path.
+The modes are mutually exclusive.  The measured default is
+`--cached --disk-read-size=2M`: it has predictable cancellation, matches the
+kernel's normal page-cache path, and was the safest cross-platform result in
+`benchmarks/RDMA-SOURCE-IO-TUNING.md`.
 
 `--synthetic-file-data=SIZE` is a benchmark-only source that produces a
 deterministic counter byte stream without reading a source device.  Its final
