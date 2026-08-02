@@ -26,6 +26,7 @@ extern int am_server;
 extern int am_daemon;
 extern int am_sender;
 extern int local_server;
+extern int daemon_connection;
 extern int quiet;
 extern int do_compression;
 extern int called_from_signal_handler;
@@ -74,7 +75,7 @@ static int fallback(const char *reason)
 
 int rdma_preflight(UNUSED(int f_in), UNUSED(int f_out))
 {
-	if (rdma_policy == RDMA_POLICY_OFF || local_server || am_daemon)
+	if (rdma_policy == RDMA_POLICY_OFF || local_server || am_daemon || daemon_connection)
 		return 0;
 	if (!peer_capable)
 		return fallback("peer does not advertise RDMA support");
@@ -591,7 +592,7 @@ static int client_preflight(int f_in, int f_out)
 
 int rdma_preflight(int f_in, int f_out)
 {
-	if (rdma_policy == RDMA_POLICY_OFF || local_server || am_daemon)
+	if (rdma_policy == RDMA_POLICY_OFF || local_server || am_daemon || daemon_connection)
 		return 0;
 	if (!peer_capable)
 		return fallback("peer does not advertise RDMA support");
@@ -1044,20 +1045,20 @@ static void show_active_config(void)
 
 	if (am_server || rdma_config_mode == 0 || (rdma_config_mode < 0 && quiet))
 		return;
-	rprintf(FINFO, "rdmasync: RDMA active: %d rail%s, %s chunks, depth %d, %s registered; ",
+	rprintf(FWARNING, "rdmasync: RDMA active: %d rail%s, %s chunks, depth %d, %s registered; ",
 		transport.rail_count, transport.rail_count == 1 ? "" : "s",
 		do_big_num(rdma_chunk_size, 3, NULL), rdma_queue_depth,
 		do_big_num((int64)memory, 3, NULL));
 	for (i = 0; i < transport.rail_count; i++) {
 		struct rdma_candidate *local = &transport.candidates[transport.selection[i].local_index];
 		struct rdma_endpoint *remote = &transport.endpoints[transport.selection[i].remote_index];
-		rprintf(FINFO, "%s%s/%s->%s/%s", i ? " + " : "",
+		rprintf(FWARNING, "%s%s/%s->%s/%s", i ? " + " : "",
 			local->ibdev, local->address, remote->ibdev, remote->address);
 	}
-	rprintf(FINFO, "; source=%s%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
+	rprintf(FWARNING, "; source=%s%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
 		: source_io_mode == SOURCE_IO_MAPPED ? "mapped" : "cached",
 		synthetic_file_size >= 0 ? ",synthetic" : "");
-	rprintf(FINFO, "\n");
+	rprintf(FWARNING, "\n");
 }
 
 int rdma_activate(void)

@@ -26,6 +26,7 @@
 #include <popt.h>
 
 extern int module_id;
+extern int daemon_connection;
 extern int local_server;
 extern int sanitize_paths;
 extern int trust_sender_args;
@@ -3212,7 +3213,7 @@ int maybe_add_e_option(char *buf, int buf_len)
 		buf[x++] = 'v'; /* use varint for flist & compat flags; negotiate checksum */
 		buf[x++] = 'u'; /* include name of uid 0 & gid 0 in the id map */
 #ifdef SUPPORT_RDMA
-		if (rdma_policy != RDMA_POLICY_OFF)
+		if (rdma_policy != RDMA_POLICY_OFF && !am_daemon && !daemon_connection)
 			buf[x++] = 'R'; /* supports a separately negotiated RDMA bulk path */
 #endif
 
