@@ -21,6 +21,7 @@
 
 #include "rsync.h"
 #include "inums.h"
+#include "rdma.h"
 
 extern int dry_run;
 extern int do_xfers;
@@ -649,6 +650,8 @@ int recv_files(int f_in, int f_out, char *local_name)
 	const char *parent_dirname = "";
 #endif
 	int ndx, recv_ok, one_inplace;
+
+	rdma_activate();
 
 	if (DEBUG_GTE(RECV, 1))
 		rprintf(FINFO, "recv_files(%d) starting\n", cur_flist->used);

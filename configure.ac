@@ -1473,6 +1473,38 @@ if test x"$enable_acl_support" = x"no" || test x"$enable_xattr_support" = x"no" 
     fi
 fi
 
+AC_CHECK_HEADERS([sys/mman.h])
+AC_CHECK_FUNCS([mmap])
+
+#################################################
+# check for optional RDMA support
+AC_MSG_CHECKING(whether to support RDMA bulk transfers)
+AC_ARG_ENABLE(rdma,
+    AS_HELP_STRING([--disable-rdma],[disable automatic RDMA bulk transfers]),
+    [], [enable_rdma=maybe])
+AH_TEMPLATE([SUPPORT_RDMA],
+[Define to 1 to add libibverbs RDMA bulk-transfer support])
+if test x"$enable_rdma" = x"no"; then
+    AC_MSG_RESULT(no)
+else
+    AC_MSG_RESULT(probing)
+    AC_CHECK_HEADERS([infiniband/verbs.h], [have_ibverbs_h=yes], [have_ibverbs_h=no])
+    if test x"$have_ibverbs_h" = x"yes"; then
+        AC_CHECK_LIB([ibverbs], [ibv_get_device_list],
+            [have_ibverbs_lib=yes; LIBS="-libverbs $LIBS"], [have_ibverbs_lib=no])
+    else
+        have_ibverbs_lib=no
+    fi
+    if test x"$have_ibverbs_h$have_ibverbs_lib" = x"yesyes"; then
+        AC_DEFINE(SUPPORT_RDMA, 1)
+        AC_MSG_NOTICE([libibverbs RDMA bulk transfers enabled])
+    elif test x"$enable_rdma" = x"yes"; then
+        AC_MSG_ERROR([--enable-rdma requested but libibverbs headers/library were not found])
+    else
+        AC_MSG_WARN([libibverbs not found; building without RDMA bulk transfers])
+    fi
+fi
+
 case "$CC" in
 ' checker'*|checker*)
     AC_DEFINE(FORCE_FD_ZERO_MEMSET, 1, [Used to make "checker" understand that FD_ZERO() clears memory.])

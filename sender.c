@@ -21,6 +21,7 @@
 
 #include "rsync.h"
 #include "inums.h"
+#include "rdma.h"
 
 extern int do_xfers;
 extern int am_server;
@@ -216,7 +217,19 @@ void send_files(int f_in, int f_out)
 	enum logcode log_code = log_before_transfer ? FLOG : FINFO;
 	int f_xfer = write_batch < 0 ? batch_fd : f_out;
 	int save_io_error = io_error;
+	int source_open_flags = O_RDONLY;
 	int ndx, j;
+
+#ifdef O_DIRECT
+	if (source_io_mode == SOURCE_IO_UNCACHED && synthetic_file_size < 0)
+		source_open_flags |= O_DIRECT;
+#endif
+
+	/* The receiving side cannot enter its post-fork RDMA activation until it
+	 * has the complete file list.  Do not wait on the bootstrap listener with
+	 * that list still buffered in the SSH control stream. */
+	io_flush(FULL_FLUSH);
+	rdma_activate();
 
 	if (DEBUG_GTE(SEND, 1))
 		rprintf(FINFO, "send_files starting\n");
@@ -378,9 +391,9 @@ void send_files(int f_in, int f_out)
 			relp = secure_path;
 			while (*relp == '/')
 				relp++;
-			fd = secure_relative_open(module_dir, relp, O_RDONLY, 0);
+			fd = secure_relative_open(module_dir, relp, source_open_flags, 0);
 		} else {
-			fd = do_open_checklinks(fname);
+			fd = do_open_checklinks_flags(fname, source_open_flags);
 		}
 		if (fd == -1) {
 			if (errno == ENOENT) {
@@ -408,6 +421,8 @@ void send_files(int f_in, int f_out)
 			close(fd);
 			exit_cleanup(RERR_FILEIO);
 		}
+		if (synthetic_file_size >= 0 && S_ISREG(st.st_mode))
+			st.st_size = synthetic_file_size;
 
 		if (IS_DEVICE(st.st_mode)) {
 			if (!copy_devices) {

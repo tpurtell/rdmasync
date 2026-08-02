@@ -21,6 +21,7 @@
 
 #include "rsync.h"
 #include "itypes.h"
+#include "rdma.h"
 #include <zlib.h>
 #ifdef SUPPORT_ZSTD
 #include <zstd.h>
@@ -302,25 +303,42 @@ static int32 simple_recv_token(int f, char **data)
 	*data = buf;
 	n = MIN(CHUNK_SIZE,residue);
 	residue -= n;
-	read_buf(f,buf,n);
+	if (rdma_is_active())
+		rdma_recv_data(buf, n);
+	else
+		read_buf(f,buf,n);
 	return n;
 }
 
 /* non-compressing send token */
 static void simple_send_token(int f, int32 token, struct map_struct *buf, OFF_T offset, int32 n)
 {
+	static int rdma_control_pending;
 	if (n > 0) {
 		int32 len = 0;
 		while (len < n) {
-			int32 n1 = MIN(CHUNK_SIZE, n-len);
+			int32 n1 = MIN(rdma_literal_chunk_size(), n-len);
 			write_int(f, n1);
-			write_buf(f, map_ptr(buf, offset+len, n1), n1);
+			if (rdma_is_active())
+				rdma_send_data(map_ptr(buf, offset+len, n1), n1);
+			else
+				write_buf(f, map_ptr(buf, offset+len, n1), n1);
+			if (rdma_is_active()
+			 && ++rdma_control_pending >= MAX(1, rdma_queue_depth / 2)) {
+				io_flush(NORMAL_FLUSH);
+				rdma_control_pending = 0;
+			}
 			len += n1;
 		}
 	}
 	/* a -2 token means to send data only and no token */
-	if (token != -2)
+	if (token != -2) {
 		write_int(f, -(token+1));
+		if (rdma_is_active() && rdma_control_pending) {
+			io_flush(NORMAL_FLUSH);
+			rdma_control_pending = 0;
+		}
+	}
 }
 
 /* Flag bytes in compressed stream are encoded as follows: */

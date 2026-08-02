@@ -22,6 +22,7 @@
 #include "rsync.h"
 #include "itypes.h"
 #include "ifuncs.h"
+#include "rdma.h"
 #include <popt.h>
 
 extern int module_id;
@@ -338,6 +339,8 @@ static int refused_inplace, refused_no_iconv;
 static BOOL usermap_via_chown, groupmap_via_chown;
 static char *outbuf_mode;
 static char *bwlimit_arg, *max_size_arg, *min_size_arg;
+static char *rdma_policy_arg, *rdma_rails_arg, *rdma_chunk_size_arg;
+static char *disk_read_size_arg, *synthetic_file_size_arg;
 static char tmp_partialdir[] = ".~tmp~";
 
 /** Local address to bind.  As a character string because it's
@@ -594,7 +597,9 @@ enum {OPT_SERVER = 1000, OPT_DAEMON, OPT_SENDER, OPT_EXCLUDE, OPT_EXCLUDE_FROM,
       OPT_NO_D, OPT_APPEND, OPT_NO_ICONV, OPT_INFO, OPT_DEBUG, OPT_BLOCK_SIZE,
       OPT_USERMAP, OPT_GROUPMAP, OPT_CHOWN, OPT_BWLIMIT, OPT_STDERR,
       OPT_OLD_COMPRESS, OPT_NEW_COMPRESS, OPT_NO_COMPRESS, OPT_OLD_ARGS,
-      OPT_STOP_AFTER, OPT_STOP_AT,
+      OPT_STOP_AFTER, OPT_STOP_AT, OPT_RDMA, OPT_RDMA_RAILS,
+      OPT_RDMA_CHUNK_SIZE, OPT_CACHED, OPT_UNCACHED, OPT_MAPPED,
+      OPT_DISK_READ_SIZE, OPT_SYNTHETIC_FILE_DATA,
       OPT_REFUSED_BASE = 9000};
 
 static struct poptOption long_options[] = {
@@ -822,6 +827,20 @@ static struct poptOption long_options[] = {
   {"stop-at",          0,  POPT_ARG_STRING, 0, OPT_STOP_AT, 0, 0 },
   {"rsh",             'e', POPT_ARG_STRING, &shell_cmd, 0, 0, 0 },
   {"rsync-path",       0,  POPT_ARG_STRING, &rsync_path, 0, 0, 0 },
+  {"rdma",             0,  POPT_ARG_STRING, &rdma_policy_arg, OPT_RDMA, 0, 0 },
+  {"no-rdma",          0,  POPT_ARG_VAL,    &rdma_policy, RDMA_POLICY_OFF, 0, 0 },
+  {"rdma-rails",       0,  POPT_ARG_STRING, &rdma_rails_arg, OPT_RDMA_RAILS, 0, 0 },
+  {"rdma-chunk-size",  0,  POPT_ARG_STRING, &rdma_chunk_size_arg, OPT_RDMA_CHUNK_SIZE, 0, 0 },
+  {"rdma-queue-depth", 0,  POPT_ARG_INT,    &rdma_queue_depth, 0, 0, 0 },
+  {"rdma-port",        0,  POPT_ARG_INT,    &rdma_bootstrap_port, 0, 0, 0 },
+  {"rdma-device",      0,  POPT_ARG_STRING, &rdma_device_filter, 0, 0, 0 },
+  {"rdma-show-config", 0,  POPT_ARG_VAL,    &rdma_config_mode, 1, 0, 0 },
+  {"rdma-no-config",   0,  POPT_ARG_VAL,    &rdma_config_mode, 0, 0, 0 },
+  {"cached",           0,  POPT_ARG_NONE,   0, OPT_CACHED, 0, 0 },
+  {"uncached",         0,  POPT_ARG_NONE,   0, OPT_UNCACHED, 0, 0 },
+  {"mapped",           0,  POPT_ARG_NONE,   0, OPT_MAPPED, 0, 0 },
+  {"disk-read-size",   0,  POPT_ARG_STRING, &disk_read_size_arg, OPT_DISK_READ_SIZE, 0, 0 },
+  {"synthetic-file-data", 0, POPT_ARG_STRING, &synthetic_file_size_arg, OPT_SYNTHETIC_FILE_DATA, 0, 0 },
   {"temp-dir",        'T', POPT_ARG_STRING, &tmpdir, 0, 0, 0 },
   {"iconv",            0,  POPT_ARG_STRING, &iconv_opt, 0, 0, 0 },
   {"no-iconv",         0,  POPT_ARG_NONE,   0, OPT_NO_ICONV, 0, 0 },
@@ -1718,6 +1737,83 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 			break;
 		}
 
+		case OPT_RDMA:
+			if (strcmp(rdma_policy_arg, "auto") == 0)
+				rdma_policy = RDMA_POLICY_AUTO;
+			else if (strcmp(rdma_policy_arg, "required") == 0)
+				rdma_policy = RDMA_POLICY_REQUIRED;
+			else {
+				snprintf(err_buf, sizeof err_buf,
+					"--rdma mode must be auto or required (got %s)\n",
+					rdma_policy_arg);
+				goto cleanup;
+			}
+			break;
+
+		case OPT_RDMA_RAILS:
+			if (strcmp(rdma_rails_arg, "auto") == 0)
+				rdma_requested_rails = 0;
+			else if (strcmp(rdma_rails_arg, "1") == 0)
+				rdma_requested_rails = 1;
+			else if (strcmp(rdma_rails_arg, "2") == 0)
+				rdma_requested_rails = 2;
+			else {
+				snprintf(err_buf, sizeof err_buf,
+					"--rdma-rails must be auto, 1, or 2 (got %s)\n",
+					rdma_rails_arg);
+				goto cleanup;
+			}
+			break;
+
+		case OPT_RDMA_CHUNK_SIZE: {
+			ssize_t size = parse_size_arg(rdma_chunk_size_arg, 'B',
+				"rdma-chunk-size", 4096, 8 * 1024 * 1024, False);
+			if (size < 0)
+				goto cleanup;
+			if (size & 63) {
+				snprintf(err_buf, sizeof err_buf,
+					"--rdma-chunk-size must be a multiple of 64 bytes\n");
+				goto cleanup;
+			}
+			rdma_chunk_size = (int)size;
+			break;
+		}
+
+		case OPT_CACHED:
+		case OPT_UNCACHED:
+		case OPT_MAPPED: {
+			int new_mode = opt == OPT_CACHED ? SOURCE_IO_CACHED
+				: opt == OPT_UNCACHED ? SOURCE_IO_UNCACHED : SOURCE_IO_MAPPED;
+			if (source_io_mode_explicit && source_io_mode != new_mode) {
+				snprintf(err_buf, sizeof err_buf,
+					"--cached, --uncached, and --mapped are mutually exclusive\n");
+				goto cleanup;
+			}
+			source_io_mode = new_mode;
+			source_io_mode_explicit = 1;
+			break;
+		}
+
+		case OPT_DISK_READ_SIZE: {
+			ssize_t size = parse_size_arg(disk_read_size_arg, 'B',
+				"disk-read-size", 4096, 1024 * 1024 * 1024, False);
+			if (size < 0)
+				goto cleanup;
+			disk_read_size = (int)size;
+			disk_read_size_explicit = 1;
+			break;
+		}
+
+		case OPT_SYNTHETIC_FILE_DATA: {
+			ssize_t size = parse_size_arg(synthetic_file_size_arg, 'B',
+				"synthetic-file-data", 1, -1, False);
+			if (size < 0)
+				goto cleanup;
+			synthetic_file_size = (OFF_T)size;
+			whole_file = 1;
+			break;
+		}
+
 		case OPT_APPEND:
 			if (am_server)
 				append_mode++;
@@ -1964,6 +2060,45 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 	if (!max_alloc)
 		max_alloc = SIZE_MAX;
 
+	if (rdma_queue_depth < 2 || rdma_queue_depth > 4096) {
+		snprintf(err_buf, sizeof err_buf,
+			"--rdma-queue-depth must be between 2 and 4096\n");
+		goto cleanup;
+	}
+	if (rdma_bootstrap_port < 0 || rdma_bootstrap_port > 65535) {
+		snprintf(err_buf, sizeof err_buf,
+			"--rdma-port must be between 0 and 65535\n");
+		goto cleanup;
+	}
+#ifndef SUPPORT_RDMA
+	if (rdma_policy == RDMA_POLICY_REQUIRED) {
+		snprintf(err_buf, sizeof err_buf,
+			"--rdma=required was specified, but this build has no RDMA support\n");
+		goto cleanup;
+	}
+#endif
+#ifndef O_DIRECT
+	if (source_io_mode == SOURCE_IO_UNCACHED) {
+		snprintf(err_buf, sizeof err_buf,
+			"--uncached is not supported by this build\n");
+		goto cleanup;
+	}
+#endif
+#if !defined HAVE_MMAP || !defined HAVE_SYS_MMAN_H
+	if (source_io_mode == SOURCE_IO_MAPPED) {
+		snprintf(err_buf, sizeof err_buf,
+			"--mapped is not supported by this build\n");
+		goto cleanup;
+	}
+#endif
+	if (synthetic_file_size >= 0
+	 && ((source_io_mode_explicit && source_io_mode != SOURCE_IO_CACHED)
+	  || disk_read_size_explicit)) {
+		snprintf(err_buf, sizeof err_buf,
+			"--synthetic-file-data conflicts with --uncached, --mapped, and --disk-read-size\n");
+		goto cleanup;
+	}
+
 	if (old_style_args < 0) {
 		if (!am_server && protect_args <= 0 && (arg = getenv("RSYNC_OLD_ARGS")) != NULL && *arg) {
 			protect_args = 0;
@@ -2102,6 +2237,12 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 	argv = *argv_p;
 	poptFreeContext(pc);
 	pc = NULL;
+
+	if (synthetic_file_size >= 0 && !am_server && argc != 2) {
+		snprintf(err_buf, sizeof err_buf,
+			"--synthetic-file-data requires exactly one source and one destination\n");
+		goto cleanup;
+	}
 
 #ifndef SUPPORT_LINKS
 	if (preserve_links && !am_sender) {
@@ -2882,6 +3023,27 @@ void server_options(char **args, int *argc_p)
 		args[ac++] = arg;
 	}
 
+	/* Only source access settings need to reach a remote sender.  RDMA
+	 * tuning is exchanged after the peer capability is known, preserving
+	 * automatic fallback to an unmodified remote rsync. */
+	if (!am_sender) {
+		if (source_io_mode_explicit) {
+			args[ac++] = source_io_mode == SOURCE_IO_UNCACHED ? "--uncached"
+				: source_io_mode == SOURCE_IO_MAPPED ? "--mapped" : "--cached";
+		}
+		if (disk_read_size_explicit) {
+			if (asprintf(&arg, "--disk-read-size=%d", disk_read_size) < 0)
+				goto oom;
+			args[ac++] = arg;
+		}
+		if (synthetic_file_size >= 0) {
+			if (asprintf(&arg, "--synthetic-file-data=%s",
+				    do_big_num(synthetic_file_size, 0, NULL)) < 0)
+				goto oom;
+			args[ac++] = arg;
+		}
+	}
+
 	if (partial_dir && am_sender) {
 		if (partial_dir != tmp_partialdir) {
 			args[ac++] = "--partial-dir";
@@ -3049,6 +3211,10 @@ int maybe_add_e_option(char *buf, int buf_len)
 		buf[x++] = 'I'; /* support inplace_partial behavior */
 		buf[x++] = 'v'; /* use varint for flist & compat flags; negotiate checksum */
 		buf[x++] = 'u'; /* include name of uid 0 & gid 0 in the id map */
+#ifdef SUPPORT_RDMA
+		if (rdma_policy != RDMA_POLICY_OFF)
+			buf[x++] = 'R'; /* supports a separately negotiated RDMA bulk path */
+#endif
 
 		/* NOTE: Avoid using 'V' -- it was represented with the high bit of a write_byte() that became a write_varint(). */
 	}

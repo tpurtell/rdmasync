@@ -21,6 +21,7 @@
 
 #include "rsync.h"
 #include "itypes.h"
+#include "rdma.h"
 #include "ifuncs.h"
 
 extern int am_server;
@@ -124,6 +125,7 @@ struct name_num_obj valid_compressions = {
 #define CF_INPLACE_PARTIAL_DIR (1<<6)
 #define CF_VARINT_FLIST_FLAGS (1<<7)
 #define CF_ID0_NAMES (1<<8)
+#define CF_RDMA_BULK (1<<9)
 
 static const char *client_info;
 
@@ -727,6 +729,12 @@ void setup_protocol(int f_out,int f_in)
 				compat_flags |= CF_INPLACE_PARTIAL_DIR;
 			if (strchr(client_info, 'u') != NULL)
 				compat_flags |= CF_ID0_NAMES;
+#ifdef SUPPORT_RDMA
+			if (strchr(client_info, 'R') != NULL && rdma_policy != RDMA_POLICY_OFF) {
+				compat_flags |= CF_RDMA_BULK;
+				rdma_set_peer_capable(1);
+			}
+#endif
 			if (strchr(client_info, 'v') != NULL) {
 				do_negotiated_strings = 1;
 				compat_flags |= CF_VARINT_FLIST_FLAGS;
@@ -741,6 +749,7 @@ void setup_protocol(int f_out,int f_in)
 			compat_flags = read_varint(f_in);
 			if  (compat_flags & CF_VARINT_FLIST_FLAGS)
 				do_negotiated_strings = 1;
+			rdma_set_peer_capable(!!(compat_flags & CF_RDMA_BULK));
 		}
 		/* The inc_recurse var MUST be set to 0 or 1. */
 		inc_recurse = compat_flags & CF_INC_RECURSE ? 1 : 0;

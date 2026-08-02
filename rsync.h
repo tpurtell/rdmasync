@@ -1004,6 +1004,10 @@ struct map_struct {
 	int32 def_window_size;	/* Default window size			*/
 	int fd;			/* File Descriptor			*/
 	int status;		/* first errno from read errors		*/
+	int io_mode;		/* SOURCE_IO_* access strategy		*/
+	int synthetic;		/* generate bytes instead of reading	*/
+	void *mmap_base;		/* page-aligned mapped window		*/
+	size_t mmap_len;		/* length of mmap_base			*/
 };
 
 #define sum2_at(s, i)	((s)->sum2_array + ((size_t)(i) * xfer_sum_len))

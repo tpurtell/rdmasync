@@ -48,13 +48,14 @@ directions.  Native builds are required on amd64 raptor and arm64 sparks.
 
 ## Negotiation design
 
-The client prepends a harmless environment assignment to the remote rsync
-command (for example `RDMASYNC_CAP=1`).  An old remote binary ignores it.  A
-new remote binary that sees it advertises an RDMA capability bit in rsync's
-existing server-to-client variable-length compatibility flags.  A new remote
-does not advertise the bit to an old client because the environment marker is
-absent.  This preserves protocol-32 interoperability without adding an option
-that old rsync would reject.
+The client appends `R` to rsync's existing internal `-e` capability string.
+That string already exists to describe implementation behavior, is ignored by
+old servers when they do not recognize a letter, and is independent of the
+program named by `--rsync-path`.  A new remote that sees `R` advertises an RDMA
+bit in rsync's existing server-to-client variable-length compatibility flags.
+A new remote does not advertise the bit to an old client because `R` is
+absent.  This preserves protocol-32 interoperability without adding a remote
+command-line option that old rsync would reject.
 
 When the capability bit is present, both processes enter a bounded RDMA setup
 exchange immediately after `setup_protocol()` and before either side enables
@@ -63,20 +64,29 @@ rsync multiplexing:
 1. The client sends its requested policy and tuning values over SSH.
 2. Each side enumerates active Ethernet-link-layer verbs ports and associates
    them with usable IPv4/IPv6 netdevices and GIDs.
-3. The remote side opens one bootstrap listener per selected path and returns
-   its endpoint records over SSH.  A random per-process connection cookie sent
-   only on the SSH control plane associates incoming bootstrap sockets with
-   this rsync process; it is not a bulk-data checksum or encryption layer.
-4. The client connects to every compatible endpoint.  Each bootstrap socket
-   exchanges QP number, PSN, GID, MTU, and negotiated limits, transitions an RC
-   QP through INIT/RTR/RTS, and is then closed.
-5. Both sides send a final ready record over SSH.  Until both are ready, any
-   failure tears down partial verbs state and selects ordinary SSH transport.
+3. The remote side opens one TCP bootstrap listener per candidate path and
+   returns endpoint records over SSH.  A random per-process connection cookie
+   sent only on the SSH control plane associates incoming bootstrap sockets
+   with this rsync process; it is not a bulk-data checksum or encryption layer.
+4. Rsync's receiving side subsequently forks its generator and data-receiver
+   processes.  The generator closes its inherited listeners without creating
+   verbs state.  Only the actual data sender and data receiver continue setup,
+   so registered memory and verbs objects are never inherited across this
+   fork.
+5. The command-side process connects to every selected listener, binding the
+   intended source netdevice address.  Each bootstrap socket exchanges QP
+   number, PSN, GID, MTU, and negotiated limits, transitions an RC QP through
+   INIT/RTR/RTS, exchanges a final ready record, and is then closed.
+6. Until every selected QP is ready, any failure tears down partial verbs state
+   and selects ordinary SSH transport.  A successful RC transition, rather
+   than a matching subnet or hostname, is the proof of RDMA connectivity.
 
-Path selection prefers distinct active verbs devices/netdevices.  `auto`
-selects two paths when both ends offer at least two, otherwise one.  In the
-known topology, raptor may create two QPs through its single 400 Gb/s device to
-the two distinct spark devices; spark-to-spark maps distinct devices to each
+Path selection prefers distinct active verbs devices/netdevices and considers
+their advertised link rates.  `auto` accepts one path, selects two when both
+ends offer two useful paths, and also selects two QPs when one 400 Gb/s device
+faces two 200 Gb/s devices.  Thus raptor can use its one device against both
+spark rails, while a spark with only one configured 200 Gb/s rail remains a
+fully supported one-path peer.  Spark-to-spark maps distinct devices to each
 other.  Explicit path options exist for diagnosis, but no hostname-specific
 logic belongs in the transport.
 
@@ -154,12 +164,13 @@ has predictable cancellation and matches the kernel's normal page-cache path.
 
 `--synthetic-file-data=SIZE` is a benchmark-only source that produces a
 deterministic counter byte stream without reading a source device.  Its final
-CLI contract will be fixed alongside integration tests.  It must state the
-logical size, force a whole-file literal stream, and pair with an explicit
-receiver discard mode (or a verified temporary destination) so benchmark
-results can exclude both source reads and destination writes.  Synthetic data
-uses no per-byte hash and is never a substitute for the content of a named
-ordinary file.
+CLI contract accepts exactly one named regular-file placeholder, including
+when archive mode is selected, states the logical size, and forces a whole-file
+literal stream.  A directory or other non-regular placeholder is rejected.
+Pair it with a verified temporary destination so benchmark results can exclude
+source reads and independently characterize destination writes.  Synthetic
+data uses no extra per-byte hash and is never a substitute for the actual
+content of a named ordinary file.
 
 All size options accept rsync's normal size suffixes.  Invalid zero, overflow,
 alignment, unreasonable-memory, and unsupported combinations fail during

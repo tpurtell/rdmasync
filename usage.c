@@ -128,6 +128,11 @@ static void print_info_flags(enum logcode f)
 #endif
 			"prealloc",
 
+#ifndef SUPPORT_RDMA
+		"no "
+#endif
+			"RDMA-bulk",
+
 #ifndef HAVE_MKTIME
 		"no "
 #endif

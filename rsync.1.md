@@ -489,6 +489,20 @@ has its own detailed description later in this manpage.
 --block-size=SIZE, -B    force a fixed checksum block-size
 --rsh=COMMAND, -e        specify the remote shell to use
 --rsync-path=PROGRAM     specify the rsync to run on remote machine
+--rdma=MODE              use RDMA automatically or require it
+--no-rdma                disable RDMA negotiation
+--rdma-rails=auto|1|2    choose the number of RDMA paths
+--rdma-chunk-size=SIZE   set the RDMA registered-slot size
+--rdma-queue-depth=NUM   set registered slots per RDMA path
+--rdma-port=PORT         set bootstrap base port (0 is ephemeral)
+--rdma-device=LIST       prefer local RDMA device/netdevice names
+--rdma-show-config       always show the RDMA configuration line
+--rdma-no-config         suppress the RDMA configuration line
+--cached                 read source files through the page cache
+--uncached               read source files using aligned O_DIRECT I/O
+--mapped                 read source files through windowed mmap
+--disk-read-size=SIZE    set cached/direct source read window size
+--synthetic-file-data=SIZE generate benchmark data without source reads
 --existing               skip creating new files on receiver
 --ignore-non-existing    skip creating new files on receiver
 --ignore-existing        skip updating files that exist on receiver
@@ -2213,6 +2227,104 @@ expand it.
     machine for use with the [`--relative`](#opt) option.  For instance:
 
     >     rsync -avR --rsync-path="cd /a/b && rsync" host:c/d /e/
+
+0.  `--rdma=MODE`, `--no-rdma`
+
+    For an SSH remote-shell transfer, rdmasync retains SSH as its authenticated
+    control connection and attempts to move literal file data over a separate,
+    unencrypted RDMA connection.  Both the local program and the program
+    selected by [`--rsync-path`](#opt) must support RDMA.  File lists, matched
+    block tokens, metadata, requested rsync checksums, messages, and final
+    protocol traffic remain on the ordinary rsync stream.
+
+    MODE is `auto` or `required`.  `auto` is the default: when the peer does not
+    advertise support or the pre-data fabric setup fails, rdmasync warns and
+    completes the transfer over SSH.  `required` fails before diverting any
+    literal data instead.  `--no-rdma` disables capability advertisement and
+    negotiation.
+
+    A failure after the RDMA data plane has carried literal data is a transfer
+    error, not a fallback condition.  This avoids changing transport in the
+    middle of an rsync token.  RDMA is not attempted for local, daemon-socket,
+    or batch transfers.
+
+    Rsync compression currently keeps literal data on SSH and reports that as
+    an RDMA fallback.  Rsync's own checksum options are unchanged.  The RDMA
+    transport adds neither encryption nor a payload checksum.
+
+0.  `--rdma-rails=auto|1|2`
+
+    Select the number of RDMA paths.  The default `auto` mode accepts a single
+    active path and uses two when distinct devices or asymmetric link rates
+    make the second path useful.  A host with one configured rail is supported;
+    two rails are never required by automatic mode.  A 400-Gb/s device may use
+    two queue pairs against two 200-Gb/s peer devices.
+
+0.  `--rdma-chunk-size=SIZE`, `--rdma-queue-depth=NUM`
+
+    Set the payload capacity of each registered ring slot and the number of
+    slots per rail.  The defaults are 256 KiB and 64.  The payload memory is
+    approximately `rails * queue-depth * chunk-size` on each endpoint, plus a
+    small header per slot.  Chunk size must be a multiple of 64 bytes from 4
+    KiB through 8 MiB; depth must be from 2 through 4096.
+
+    These are expert tuning controls.  Larger values can waste registered
+    memory without increasing throughput once the device queue is saturated.
+
+0.  `--rdma-port=PORT`
+
+    Set the first TCP bootstrap-listener port on the remote endpoint.  The
+    default 0 asks the kernel for ephemeral ports and conveys the selected
+    endpoints inside SSH.  A fixed base port is useful with restrictive
+    firewalls; subsequent candidate endpoints increment it.  The TCP exchange
+    carries only queue-pair setup data.  Bulk bytes use libibverbs RC sends.
+
+0.  `--rdma-device=LIST`
+
+    Restrict command-side automatic selection to a comma-separated list of
+    InfiniBand-device or associated network-device names.  For example,
+    `--rdma-device=rocep1s0f0,enp1s0f0np0`.  This is primarily for diagnosis
+    and reproducible tuning.  Remote candidate selection remains automatic.
+
+0.  `--rdma-show-config`, `--rdma-no-config`
+
+    Override display of the concise negotiated RDMA topology and ring
+    configuration.  Ordinarily it is shown for non-quiet commands and hidden
+    by [`--quiet`](#opt).  `--rdma-show-config` always shows it;
+    `--rdma-no-config` hides it.  Neither option suppresses fallback or data
+    path failure warnings.
+
+0.  `--cached`, `--uncached`, `--mapped`
+
+    Select how the sender accesses regular source-file data.  The options are
+    mutually exclusive and apply whether or not RDMA activates.
+
+    - `--cached` uses bounded `read`/`pread` windows through the page cache.
+      This is the default until platform measurements justify another choice.
+    - `--uncached` uses aligned `O_DIRECT` reads and a reusable staging window.
+      Unsupported or unaligned cases are reported rather than silently
+      returning different file content.
+    - `--mapped` uses bounded, windowed `mmap` access and promptly unmaps old
+      windows.  It does not map an entire large file at once.
+
+0.  `--disk-read-size=SIZE`
+
+    Set the source read/staging window for cached and uncached modes.  The
+    initial default is 8 MiB.  The option is accepted with `--mapped` for
+    scripting consistency but does not alter mapped-window semantics.
+
+0.  `--synthetic-file-data=SIZE`
+
+    Replace the contents of exactly one regular source file with
+    SIZE deterministic counter bytes, generated without reading the file or
+    hashing each payload.  The source pathname remains the name/metadata
+    placeholder and the destination receives the generated bytes.  The option
+    forces whole-file literal transfer and reports synthetic operation in the
+    session configuration.  Archive mode is allowed for a regular-file source,
+    but a directory or other non-regular source is rejected.  Use a temporary
+    or discard-backed destination when measuring the network independently of
+    destination storage.  It conflicts with `--uncached`, `--mapped`, and
+    `--disk-read-size` because no source read occurs.
 
 0.  `--remote-option=OPTION`, `-M`
 

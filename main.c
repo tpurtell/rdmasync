@@ -24,6 +24,7 @@
 #include "inums.h"
 #include "ifuncs.h"
 #include "io.h"
+#include "rdma.h"
 #if defined CONFIG_LOCALE && defined HAVE_LOCALE_H
 #include <locale.h>
 #endif
@@ -1054,6 +1055,7 @@ static int do_recv(int f_in, int f_out, char *local_name)
 
 	if (pid == 0) {
 		am_receiver = 1;
+		rdma_after_receiver_fork(1);
 		send_msgs_to_gen = am_server;
 
 		close(error_pipe[0]);
@@ -1105,6 +1107,7 @@ static int do_recv(int f_in, int f_out, char *local_name)
 	}
 
 	am_generator = 1;
+	rdma_after_receiver_fork(0);
 	implied_filter_list.head = implied_filter_list.tail = NULL;
 	flist_receiving_enabled = True;
 
@@ -1261,6 +1264,7 @@ void start_server(int f_in, int f_out, int argc, char *argv[])
 
 	io_set_sock_fds(f_in, f_out);
 	setup_protocol(f_out, f_in);
+	rdma_preflight(f_in, f_out);
 
 	if (protocol_version >= 23)
 		io_start_multiplex_out(f_out);
@@ -1296,6 +1300,7 @@ int client_run(int f_in, int f_out, pid_t pid, int argc, char *argv[])
 
 	io_set_sock_fds(f_in, f_out);
 	setup_protocol(f_out,f_in);
+	rdma_preflight(f_in, f_out);
 
 	/* We set our stderr file handle to blocking because ssh might have
 	 * set it to non-blocking.  This can be particularly troublesome if

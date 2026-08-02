@@ -21,6 +21,7 @@
  */
 
 #include "rsync.h"
+#include "rdma.h"
 
 extern int dry_run;
 extern int am_server;
@@ -50,6 +51,7 @@ static struct sigaction sigact;
  **/
 void close_all(void)
 {
+	rdma_cleanup();
 #ifdef SHUTDOWN_ALL_SOCKETS
 	int max_fd;
 	int fd;

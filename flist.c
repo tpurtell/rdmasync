@@ -25,6 +25,7 @@
 #include "rounding.h"
 #include "inums.h"
 #include "io.h"
+#include "rdma.h"
 
 extern int am_root;
 extern int am_server;
@@ -1426,6 +1427,16 @@ struct file_struct *make_file(const char *fname, struct file_list *flist,
 		}
 		st.st_mode = S_IFREG | (st.st_mode & ACCESSPERMS);
 		st.st_mtime = time(NULL); /* The mtime on the device is not up-to-date, so set it to "now". */
+	}
+
+	if (synthetic_file_size >= 0 && am_sender) {
+		if (!S_ISREG(st.st_mode)) {
+			rprintf(FERROR_XFER,
+				"--synthetic-file-data source is not a regular file: %s\n",
+				full_fname(fname));
+			exit_cleanup(RERR_SYNTAX);
+		}
+		st.st_size = synthetic_file_size;
 	}
 
 #ifdef ST_MTIME_NSEC

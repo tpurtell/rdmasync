@@ -685,7 +685,7 @@ int do_rmdir_at(const char *pathname)
 
 int do_open(const char *pathname, int flags, mode_t mode)
 {
-	if (flags != O_RDONLY) {
+	if ((flags & O_ACCMODE) != O_RDONLY) {
 		RETURN_ERROR_IF(dry_run, 0);
 		RETURN_ERROR_IF_RO_OR_LO;
 	}
@@ -1629,7 +1629,7 @@ int do_open_nofollow(const char *pathname, int flags)
 #endif
 	int fd;
 
-	if (flags != O_RDONLY) {
+	if ((flags & O_ACCMODE) != O_RDONLY) {
 		RETURN_ERROR_IF(dry_run, 0);
 		RETURN_ERROR_IF_RO_OR_LO;
 #ifndef O_NOFOLLOW
@@ -2171,10 +2171,15 @@ int secure_mkstemp(char *template, mode_t perms)
 
   The open is always done with O_RDONLY flags
  */
-int do_open_checklinks(const char *pathname)
+int do_open_checklinks_flags(const char *pathname, int flags)
 {
 	if (copy_links || copy_unsafe_links) {
-		return do_open(pathname, O_RDONLY, 0);
+		return do_open(pathname, flags, 0);
 	}
-	return do_open_nofollow(pathname, O_RDONLY);
+	return do_open_nofollow(pathname, flags);
+}
+
+int do_open_checklinks(const char *pathname)
+{
+	return do_open_checklinks_flags(pathname, O_RDONLY);
 }

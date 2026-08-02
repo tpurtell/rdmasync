@@ -21,6 +21,11 @@
 
 #include "rsync.h"
 #include "inums.h"
+#include "rdma.h"
+
+#if defined HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
 
 #ifndef ENODATA
 #define ENODATA EAGAIN
@@ -32,8 +37,12 @@
 #define ALIGNED_OVERSHOOT(oft) ((oft) & (ALIGN_BOUNDARY-1))
 /* Round up a length to the next boundary */
 #define ALIGNED_LENGTH(len) ((((len) - 1) | (ALIGN_BOUNDARY-1)) + 1)
+#define DIRECT_ALIGNMENT 4096
+#define DIRECT_ALIGNED_LENGTH(len) ((((len) - 1) | (DIRECT_ALIGNMENT-1)) + 1)
+#define MAPPED_WINDOW_SIZE (8 * 1024 * 1024)
 
 extern int sparse_files;
+extern int am_sender;
 
 OFF_T preallocated_len = 0;
 
@@ -220,6 +229,14 @@ struct map_struct *map_file(int fd, OFF_T len, int32 read_size, int32 blk_size)
 	struct map_struct *map;
 
 	map = new0(struct map_struct);
+	map->io_mode = am_sender ? source_io_mode : SOURCE_IO_CACHED;
+	map->synthetic = am_sender && synthetic_file_size >= 0;
+	if (am_sender && !map->synthetic) {
+		if (map->io_mode == SOURCE_IO_MAPPED)
+			read_size = MAPPED_WINDOW_SIZE;
+		else if (read_size < disk_read_size)
+			read_size = disk_read_size;
+	}
 
 	if (blk_size && (read_size % blk_size))
 		read_size += blk_size - (read_size % blk_size);
@@ -246,9 +263,62 @@ char *map_ptr(struct map_struct *map, OFF_T offset, int32 len)
 		exit_cleanup(RERR_FILEIO);
 	}
 
-	/* in most cases the region will already be available */
+	/* In every mode, reuse a window that already covers the request. */
 	if (offset >= map->p_offset && offset+len <= map->p_offset+map->p_len)
 		return map->p + (offset - map->p_offset);
+
+	if (map->synthetic) {
+		int32 j;
+		window_start = offset - ALIGNED_OVERSHOOT(offset);
+		window_size = map->def_window_size;
+		if (window_start + window_size > map->file_size)
+			window_size = (int32)(map->file_size - window_start);
+		if (window_size < len + (offset - window_start))
+			window_size = ALIGNED_LENGTH(len + (offset - window_start));
+		if (window_size > map->p_size) {
+			map->p = realloc_array(map->p, char, window_size);
+			map->p_size = window_size;
+		}
+		for (j = 0; j < window_size; j++)
+			map->p[j] = (char)((window_start + j) & 0xff);
+		map->p_offset = window_start;
+		map->p_len = window_size;
+		return map->p + (offset - window_start);
+	}
+
+	if (map->io_mode == SOURCE_IO_MAPPED) {
+#if defined HAVE_MMAP && defined HAVE_SYS_MMAN_H
+		long page_size = sysconf(_SC_PAGESIZE);
+		OFF_T page_fudge;
+		if (page_size <= 0)
+			page_size = 4096;
+		page_fudge = offset % page_size;
+		window_start = offset - page_fudge;
+		window_size = map->def_window_size;
+		if (window_start + window_size > map->file_size)
+			window_size = (int32)(map->file_size - window_start);
+		if (window_size < len + page_fudge)
+			window_size = len + page_fudge;
+		if (map->mmap_base)
+			munmap(map->mmap_base, map->mmap_len);
+		map->mmap_len = window_size;
+		map->mmap_base = mmap(NULL, map->mmap_len, PROT_READ, MAP_PRIVATE,
+			map->fd, window_start);
+		if (map->mmap_base == MAP_FAILED) {
+			map->mmap_base = NULL;
+			rsyserr(FERROR, errno, "mmap failed at %s for %ld bytes",
+				big_num(window_start), (long)window_size);
+			exit_cleanup(RERR_FILEIO);
+		}
+		map->p = map->mmap_base;
+		map->p_offset = window_start;
+		map->p_len = window_size;
+		return map->p + page_fudge;
+#else
+		rprintf(FERROR, "--mapped is not supported by this build\n");
+		exit_cleanup(RERR_UNSUPPORTED);
+#endif
+	}
 
 	/* nope, we are going to have to do a read. Work out our desired window */
 	align_fudge = (int32)ALIGNED_OVERSHOOT(offset);
@@ -258,6 +328,40 @@ char *map_ptr(struct map_struct *map, OFF_T offset, int32 len)
 		window_size = (int32)(map->file_size - window_start);
 	if (window_size < len + align_fudge)
 		window_size = ALIGNED_LENGTH(len + align_fudge);
+
+	if (map->io_mode == SOURCE_IO_UNCACHED) {
+		ssize_t nread;
+		size_t direct_size;
+		align_fudge = offset & (DIRECT_ALIGNMENT - 1);
+		window_start = offset - align_fudge;
+		window_size = map->def_window_size;
+		if (window_start + window_size > map->file_size)
+			window_size = (int32)(map->file_size - window_start);
+		if (window_size < len + align_fudge)
+			window_size = len + align_fudge;
+		direct_size = DIRECT_ALIGNED_LENGTH((size_t)window_size);
+		if ((int32)direct_size > map->p_size) {
+			char *newbuf;
+			if (posix_memalign((void **)&newbuf, DIRECT_ALIGNMENT, direct_size) != 0)
+				out_of_memory("direct-read window");
+			free(map->p);
+			map->p = newbuf;
+			map->p_size = direct_size;
+		}
+		do {
+			nread = pread(map->fd, map->p, direct_size, window_start);
+		} while (nread < 0 && errno == EINTR);
+		if (nread < window_size) {
+			if (!map->status)
+				map->status = nread < 0 ? errno : ENODATA;
+			if (nread < 0)
+				nread = 0;
+			memset(map->p + nread, 0, window_size - nread);
+		}
+		map->p_offset = window_start;
+		map->p_len = window_size;
+		return map->p + align_fudge;
+	}
 
 	/* make sure we have allocated enough memory for the window */
 	if (window_size > map->p_size) {
@@ -318,7 +422,12 @@ int unmap_file(struct map_struct *map)
 {
 	int	ret;
 
-	if (map->p) {
+	if (map->mmap_base) {
+#if defined HAVE_MMAP && defined HAVE_SYS_MMAN_H
+		munmap(map->mmap_base, map->mmap_len);
+#endif
+		map->mmap_base = map->p = NULL;
+	} else if (map->p) {
 		free(map->p);
 		map->p = NULL;
 	}

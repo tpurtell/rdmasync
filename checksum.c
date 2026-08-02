@@ -27,6 +27,7 @@
  */
 
 #include "rsync.h"
+#include "rdma.h"
 
 #ifdef SUPPORT_XXHASH
 #include <xxhash.h>
@@ -405,7 +406,14 @@ void file_checksum(const char *fname, const STRUCT_STAT *st_p, char *sum)
 	int32 remainder;
 	int fd;
 
-	fd = do_open_checklinks(fname);
+	{
+		int source_open_flags = O_RDONLY;
+#ifdef O_DIRECT
+		if (source_io_mode == SOURCE_IO_UNCACHED && synthetic_file_size < 0)
+			source_open_flags |= O_DIRECT;
+#endif
+		fd = do_open_checklinks_flags(fname, source_open_flags);
+	}
 	if (fd == -1) {
 		memset(sum, 0, file_sum_len);
 		return;
