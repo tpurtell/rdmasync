@@ -27,7 +27,6 @@ extern int am_daemon;
 extern int am_sender;
 extern int local_server;
 extern int daemon_connection;
-extern int quiet;
 extern int do_compression;
 extern int called_from_signal_handler;
 extern struct stats stats;
@@ -37,7 +36,7 @@ int rdma_requested_rails = 0;
 int rdma_chunk_size = RDMA_DEFAULT_CHUNK_SIZE;
 int rdma_queue_depth = RDMA_DEFAULT_QUEUE_DEPTH;
 int rdma_bootstrap_port = 0;
-int rdma_config_mode = -1;
+int rdma_config_mode = 0;
 char *rdma_device_filter = NULL;
 
 int source_io_mode = SOURCE_IO_CACHED;
@@ -1113,7 +1112,7 @@ static void show_active_config(void)
 		* transport.paths[0].stride;
 	int i;
 
-	if (am_server || rdma_config_mode == 0 || (rdma_config_mode < 0 && quiet))
+	if (am_server || rdma_config_mode != 1)
 		return;
 	rprintf(FWARNING, "rdmasync: RDMA active: %d rail%s, %s chunks, depth %d, %s registered; ",
 		transport.rail_count, transport.rail_count == 1 ? "" : "s",

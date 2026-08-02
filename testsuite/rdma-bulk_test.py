@@ -154,13 +154,13 @@ expect_failure(('compression is enabled', 'RDMA required but unavailable',
 # Hiding the normal configuration line must never hide an actionable fallback
 # warning.
 hidden = TODIR / 'hidden-config-fallback.bin'
-proc = run_rsync('-a', '--rdma=auto', '--rdma-no-config',
+proc = run_rsync('-aq', '--rdma=auto', '--rdma-no-config',
                  '--rdma-device=rdmasync-no-such-device',
                  f'--rsync-path={RSYNC_PEER}', str(source), f'lh:{hidden}',
                  capture_output=True)
 assert_same(source, hidden, label='fallback warning with hidden config')
 if 'using rsync-over-SSH' not in output(proc):
-    test_fail('--rdma-no-config suppressed an RDMA fallback warning')
+    test_fail('--quiet/--rdma-no-config suppressed an RDMA fallback warning')
 
 # Discard is propagated to whichever side receives.  Exercise an ordinary
 # source on push and pull so source-I/O benchmarks do not require synthetic

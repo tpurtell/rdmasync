@@ -496,8 +496,8 @@ has its own detailed description later in this manpage.
 --rdma-queue-depth=NUM   set registered slots per RDMA path
 --rdma-port=PORT         set bootstrap base port (0 is ephemeral)
 --rdma-device=LIST       prefer local RDMA device/netdevice names
---rdma-show-config       always show the RDMA configuration line
---rdma-no-config         suppress the RDMA configuration line
+--rdma-show-config       show RDMA topology and final data counters
+--rdma-no-config         hide successful RDMA details (the default)
 --rdma-discard           benchmark by leaving the destination untouched
 --cached                 read source files through the page cache
 --uncached               read source files using aligned O_DIRECT I/O
@@ -2299,12 +2299,16 @@ expand it.
 
 0.  `--rdma-show-config`, `--rdma-no-config`
 
-    Override display of the concise negotiated RDMA topology and ring
-    configuration.  Ordinarily it is shown for non-quiet commands and hidden
-    by [`--quiet`](#opt).  `--rdma-show-config` always shows it;
-    `--rdma-no-config` hides it.  Neither option suppresses fallback or data
-    path failure warnings.  The forced display also prints a final byte,
-    elapsed-time, throughput, and message-count line for the RDMA data path.
+    Successful RDMA negotiation is silent by default.  `--rdma-show-config`
+    opts in to a concise topology, ring, and source-I/O line and also prints
+    final byte, elapsed-time, throughput, and message-count data.  The
+    compatibility option `--rdma-no-config` explicitly selects the default
+    quiet-success behavior.
+
+    Neither option, [`--quiet`](#opt), nor ordinary rsync verbosity suppresses
+    the warning when automatic negotiation falls back to SSH or an active RDMA
+    data path fails.  Thus scripts can leave successful negotiation hidden
+    without losing notice that literal bytes did not use RDMA.
 
 0.  `--cached`, `--uncached`, `--mapped`
 

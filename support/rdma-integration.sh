@@ -85,6 +85,13 @@ run_copy "$normal" env "$local_rsync" -aW --rdma=required --rdma-show-config \
 grep -q "RDMA active: $expected_rails rail" "$out" \
 	|| fail "automatic rail count did not match $expected_rails"
 
+silent=$remote_base-silent
+run_copy "$silent" env "$local_rsync" -aW --rdma=required \
+	--rsync-path="$remote_rsync" "$src" "$host:$silent"
+if grep -qE 'RDMA (active|data):' "$out"; then
+	fail "successful RDMA negotiation was printed without --rdma-show-config"
+fi
+
 one=$remote_base-one
 run_copy "$one" env "$local_rsync" -aW --rdma=required --rdma-rails=1 \
 	--rsync-path="$remote_rsync" "$src" "$host:$one"
@@ -205,4 +212,4 @@ wait_remote_gone "$cancel_target" || fail "remote rsync survived cancellation"
 ssh "$host" test ! -e "$cancel_target" \
 	|| fail "cancelled discard unexpectedly created its destination"
 
-echo "rdma-integration: activation, one-rail, fallback, post-data failure, SSH death, and cancellation verified"
+echo "rdma-integration: opt-in diagnostics, activation, one-rail, fallback, post-data failure, SSH death, and cancellation verified"

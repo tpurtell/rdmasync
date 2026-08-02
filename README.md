@@ -32,14 +32,118 @@ package.
 USAGE
 -----
 
-Basically you use rsync just like scp, but rsync has many additional
-options.  To get a complete list of supported options type:
+Rdmasync keeps rsync's command line.  A normal archive copy needs no RDMA
+options:
+
+```sh
+rdmasync -a source/ spark:/data/source/
+rdmasync -a spark:/data/results/ results/
+```
+
+For remote-shell transfers, the default `--rdma=auto` attempts RDMA before
+literal file data starts.  SSH still authenticates the peer, launches the
+remote process, and carries file lists, metadata, matched-block tokens, and
+status.  If the peer or fabric cannot use RDMA, the transfer continues over
+SSH and always prints a warning explaining why.  Use `--rdma=required` when
+fallback is not acceptable:
+
+```sh
+rdmasync -a --rdma=required checkpoint/ spark:/checkpoints/checkpoint/
+```
+
+Successful RDMA negotiation is quiet by default.  To inspect the selected
+devices, addresses, rail count, registered ring, source-I/O mode, byte count,
+and measured data rate, add `--rdma-show-config`:
+
+```sh
+rdmasync -a --rdma-show-config image.tar spark:/images/image.tar
+```
+
+`--rdma-no-config` is retained as an explicit compatibility spelling for the
+default quiet-success behavior.  Neither it nor `--quiet` suppresses the
+warning when RDMA was attempted but not used.
+
+### Rdmasync defaults
+
+- The remote program is `rdmasync`, not `rsync`.  Install it on both endpoints
+  or provide `--rsync-path=PROGRAM`.
+- The normal transfer checksum defaults to `none` for high-speed whole-file
+  copies.  Use `-c`, `--checksum-choice=auto`, or a named algorithm when
+  content-based selection or an explicit transfer digest is required.
+- RDMA rail selection defaults to `auto`.  One configured rail is sufficient;
+  two are selected only when both endpoint topologies make them useful.
+- RDMA data is reliable-connected but is not encrypted and has no additional
+  payload checksum.  Use it only on a trusted fabric.
+- Compression remains on the SSH data path and therefore produces the normal
+  RDMA-fallback warning.  On a 200/400-Gb/s fabric, compression can also become
+  the bottleneck.
+
+### RDMA options
+
+| Option | Purpose |
+| --- | --- |
+| `--rdma=auto` | Attempt RDMA, warn and use SSH if setup cannot complete. This is the default. |
+| `--rdma=required` | Fail before literal data rather than fall back to SSH. |
+| `--no-rdma` | Disable RDMA capability advertisement and negotiation. |
+| `--rdma-rails=auto\|1\|2` | Select automatic, forced one-path, or forced two-path operation. |
+| `--rdma-chunk-size=SIZE` | Set each registered payload slot; accepts 4 KiB–8 MiB in 64-byte multiples. |
+| `--rdma-queue-depth=N` | Set registered slots per rail; accepts 2–4096. |
+| `--rdma-port=PORT` | Set the first TCP bootstrap port; `0` uses ephemeral ports. Bulk data never uses TCP. |
+| `--rdma-device=LIST` | Restrict local selection by verbs device or network-device name. |
+| `--rdma-show-config` | Opt in to successful negotiation topology and final RDMA counters. |
+| `--rdma-no-config` | Explicitly retain the default quiet-success behavior. |
+
+The chunk and queue-depth controls are for measured tuning, not routine use.
+Registered payload memory is approximately `rails × chunk-size × queue-depth`
+per endpoint.  Forcing two rails creates two QPs but does not require two
+physical adapters; automatic mode remains the appropriate choice for a Spark
+with only one configured rail.
+
+### Source-I/O and benchmark options
+
+| Option | Purpose |
+| --- | --- |
+| `--cached` | Read regular source files through the page cache; this is the default. |
+| `--uncached` | Use aligned `O_DIRECT` source reads. |
+| `--mapped` | Use bounded windowed `mmap` source access. |
+| `--disk-read-size=SIZE` | Set the cached/direct source window; the measured default is 2 MiB. |
+| `--synthetic-file-data=SIZE` | Generate deterministic bytes for one regular-file placeholder without source reads. |
+| `--rdma-discard` | Consume and validate one file without modifying the named destination. |
+
+The final two options are benchmark controls.  `--rdma-discard` deliberately
+does not create or update the destination and must not be used for a real
+copy.  A transport-only measurement that excludes both disks looks like:
+
+```sh
+rdmasync -aW --rdma=required --rdma-show-config \
+  --synthetic-file-data=8G --rdma-discard \
+  placeholder spark:/tmp/unused-destination
+```
+
+### Finding the remote binary
+
+SSH starts the remote side non-interactively, so its PATH can differ from an
+interactive login shell.  Check it directly:
+
+```sh
+ssh spark 'command -v rdmasync'
+```
+
+If a per-user install is not on that PATH, specify it explicitly while
+preserving the tilde for the remote shell:
+
+```sh
+rdmasync -a --rsync-path='~/.local/bin/rdmasync' source/ spark:/data/source/
+```
+
+For the complete inherited rsync option set and detailed rdmasync additions,
+use:
 
     rdmasync --help
 
-See the [manpage][0] for more detailed information.
+See the [rdmasync manpage][0] for full semantics and restrictions.
 
-[0]: https://download.samba.org/pub/rsync/rsync.1
+[0]: rsync.1.md
 
 BUILDING AND INSTALLING
 -----------------------
@@ -73,84 +177,6 @@ case.
 
 Once built put a copy of rdmasync in your search path on the local and
 remote systems (or use "make install").  That's it!
-
-
-RSYNC DAEMONS
--------------
-
-Rsync can also talk to "rsync daemons" which can provide anonymous or
-authenticated rsync.  See the rsyncd.conf(5) manpage for details on how
-to setup an rsync daemon.  See the rsync(1) manpage for info on how to
-connect to an rsync daemon.
-
-
-WEB SITE
---------
-
-For more information, visit the [main rsync web site][2].
-
-[2]: https://rsync.samba.org/
-
-You'll find a FAQ list, downloads, resources, HTML versions of the
-manpages, etc.
-
-
-MAILING LISTS
--------------
-
-There is a mailing list for the discussion of rsync and its applications
-that is open to anyone to join.  New releases are announced on this
-list, and there is also an announcement-only mailing list for those that
-want official announcements.  See the [mailing-list page][3] for full
-details.
-
-[3]: https://rsync.samba.org/lists.html
-
-
-DISCORD
--------
-
-There is also an rsync [Discord server][d] for real-time chat about rsync
-and its development.
-
-[d]: https://discord.gg/Avfvy9zhdp
-
-
-BUG REPORTS
------------
-
-The [bug-tracking web page][4] has full details on bug reporting.
-
-[4]: https://rsync.samba.org/bug-tracking.html
-
-That page contains links to the current bug list, and information on how to
-do a good job when reporting a bug.  You might also like to try searching
-the Internet for the error message you've received, or looking in the
-[mailing list archives][5].
-
-[5]: https://mail-archive.com/rsync@lists.samba.org/
-
-To send a bug report, follow the instructions on the bug-tracking
-page of the web site.
-
-Alternately, email your bug report to <rsync@lists.samba.org>.
-
-For security issues please email details of the issue to <rsync.project@gmail.com>.
-
-GIT REPOSITORY
---------------
-
-If you want to get the very latest version of rsync direct from the
-source code repository, then you will need to use git.  The git repo
-is hosted [on GitHub][6] and [on Samba's site][7].
-
-[6]: https://github.com/RsyncProject/rsync
-[7]: https://git.samba.org/?p=rsync.git;a=summary
-
-See [the download page][8] for full details on all the ways to grab the
-source.
-
-[8]: https://rsync.samba.org/download.html
 
 
 COPYRIGHT

@@ -132,13 +132,13 @@ RDMA policy defaults to `auto` for SSH transfers:
   ports and is the default.
 - `--rdma-device=LIST`: optional comma-separated local device/netdevice
   preference for reproducible tests.
-- `--rdma-show-config`: show one concise negotiated/fallback configuration
-  line even when normal output would hide it.
-- `--rdma-no-config`: suppress that line even in non-quiet output.
+- `--rdma-show-config`: opt in to concise negotiated topology and final data
+  counters.
+- `--rdma-no-config`: explicitly retain the default quiet-success behavior.
 - `--rdma-discard`: benchmark-only receiver discard; accepts exactly one
   regular-file source and leaves the named destination untouched.
 
-By default, a non-quiet invocation prints one line resembling:
+With `--rdma-show-config`, a successful invocation prints one line resembling:
 
 ```text
 rdmasync: RDMA active: 2 rails, 2 MiB chunks, depth 8, 32 MiB registered; rocep1s0f0/10.55.0.1 + roceP2p1s0f0/10.55.0.5
@@ -150,10 +150,11 @@ Fallback is a warning with the concrete reason, for example:
 rdmasync: warning: RDMA unavailable on peer; using rsync-over-SSH
 ```
 
-The config line follows rsync's quiet level unless explicitly overridden by
-`--rdma-show-config` or `--rdma-no-config`.  Forced display also reports final
-RDMA data bytes, elapsed time, throughput, and message count.  Warnings are not
-suppressed by the config-display options.
+Successful negotiation is silent by default.  `--rdma-show-config` also
+reports final RDMA data bytes, elapsed time, throughput, and message count;
+`--rdma-no-config` remains an explicit compatibility spelling for hiding both
+lines.  Fallback and active-data failure warnings are never suppressed by the
+config-display options or ordinary quiet output.
 
 The source-file access policy is independent of whether RDMA activates:
 
