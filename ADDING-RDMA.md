@@ -107,11 +107,10 @@ completed slots and exposes exactly the literal length requested by the token
 decoder.  Returning a slot reposts its receive WR, providing natural credit
 flow without a second allocation or unbounded queue.
 
-The first implementation will support uncompressed literal tokens.  Before it
-is considered complete, compressed rsync transfers must either divert their
-post-compression byte stream correctly or make a clearly documented,
-automatically reported fallback to SSH.  Correctness and option semantics are
-never changed merely to force the RDMA path.
+The implementation supports uncompressed literal tokens.  Compressed rsync
+transfers make a documented, automatically reported pre-data fallback to SSH;
+`--rdma=required` fails instead.  Correctness and option semantics are never
+changed merely to force the RDMA path.
 
 ## User-visible behavior and options
 
@@ -288,8 +287,8 @@ not against a network rate storage cannot sustain.
   GCC 13.3 and libibverbs 1.14.50.0, and expose two active RoCE devices.  For
   `ostrich`, the active addresses are `10.55.0.1` and `10.55.0.5`; for `dodo`,
   `10.55.0.2` and `10.55.0.6`.
-- The ordinary rsync protocol version is 32.  The planned capability marker
-  and compatibility-flag handshake avoids changing that public version.
+- The ordinary rsync protocol version remains 32.  The implemented capability
+  marker and compatibility-flag handshake avoids changing that public version.
 
 ## Completion gates
 
@@ -309,3 +308,26 @@ current tree or linked benchmark artifacts:
 - measured near-200-Gb/s behavior where the independent fabric ceiling and CPU
   allow it, or a precise, reproducible bottleneck report if the hardware does
   not expose that ceiling.
+
+## Completion evidence (2026-08-02)
+
+- amd64 protocol 32, 30, and 29 suites: 105 passed, 9 expected skips each
+- native arm64 suite on ostrich: 102 passed, 12 expected skips
+- clean `--disable-rdma` build: 105 passed, 9 expected skips; reports
+  `no RDMA-bulk`
+- live integration harness: passed raptor→ostrich and ostrich→dodo, including
+  automatic two rails, forced and single-candidate one rail, setup fallback,
+  old peers, post-data failure, SSH death, and SIGINT cleanup
+- reverse compatibility: unmodified `/usr/bin/rsync` client to new remote
+  succeeds without activating RDMA
+- no remaining integration rsync processes or registered MRs after failure
+  runs
+- tuning reports and raw data are indexed in `benchmarks/README.md`
+
+The independent Spark fabric reaches 196.06 Gb/s.  The selected synthetic
+two-rail transport reaches a 167.71 Gb/s median (85.5% of fabric); its receiver
+and sender are each limited by one busy rsync process.  Raptor's independent
+verbs ceiling was only 159.74 Gb/s on this run, so claiming 200 Gb/s there
+would be unsupported.  Source NVMe, destination persistence, and the normal
+MD5 transfer checksum impose lower end-to-end ceilings quantified in their
+respective reports.
