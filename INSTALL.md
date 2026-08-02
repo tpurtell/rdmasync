@@ -1,39 +1,24 @@
-# How to build and install rsync
+# How to build and install rdmasync
 
-When building rsync, you'll want to install various libraries in order to get
-all the features enabled.  The configure script will alert you when the
-newest libraries are missing and tell you the appropriate `--disable-LIB`
-option to use if you want to just skip that feature.  What follows are various
-support libraries that you may want to install to build rsync with the maximum
-features (the impatient can skip down to the package summary):
+When building rdmasync, you'll want to install various libraries in order to
+get all the inherited rsync features enabled.  The configure script will
+alert you when the newest libraries are missing and tell you the appropriate
+`--disable-LIB` option to use if you want to skip that feature.  What follows
+are various support libraries that you may want to install to build with the
+maximum feature set.  Rdmasync is a source build; upstream rsync binary
+packages do not contain its RDMA transport.
 
-## Ubuntu users: skip the build, use the PPA
+## RDMA bulk transport
 
-If you are on a currently supported Ubuntu series (jammy 22.04 LTS, noble
-24.04 LTS, questing 25.10, resolute 26.04 LTS) and just want the latest
-upstream rsync, the rsync project maintains a Launchpad PPA that tracks
-stable releases:
+The RDMA fast path currently requires Linux and the libibverbs development
+headers and library.  Pass `--enable-rdma` so configure fails if that support
+cannot be built; without the explicit option, missing libibverbs merely causes
+a warning and produces a binary without `RDMA-bulk` capability.
 
->     sudo add-apt-repository ppa:rsyncproject/rsync
->     sudo apt update && sudo apt install rsync
-
-See [the PPA page][ppa] for current build status across architectures.
-
-[ppa]: https://launchpad.net/~rsyncproject/+archive/ubuntu/rsync
-
-To test the upcoming release instead, there is also a [`rsync-latest`
-PPA][ppa-latest] that is rebuilt from the tip of the git master branch.  These
-are development snapshots whose version numbers (such as
-`3.5.0~git20260601...`) deliberately sort below the matching stable release, so
-the stable PPA above will never silently move you from a release onto a
-snapshot.  Use it for testing only -- it may contain unreleased changes:
-
->     sudo add-apt-repository ppa:rsyncproject/rsync-latest
->     sudo apt update && sudo apt install rsync
-
-[ppa-latest]: https://launchpad.net/~rsyncproject/+archive/ubuntu/rsync-latest
-
-The rest of this document covers building from source.
+On Debian and Ubuntu, the required package is `libibverbs-dev`.  Native amd64
+and arm64 builds use the same source and configure options.  Runtime peers
+also need active Ethernet-link-layer verbs ports, IPv4 addresses, and RoCE-v2
+GIDs; one usable rail is sufficient.
 
 ## The basic setup
 
@@ -124,7 +109,8 @@ like.
  -  For Debian and Ubuntu (Debian Buster users may want to briefly(?) enable
     buster-backports to update zstd from 1.3 to 1.4):
 
-    >     sudo apt install -y gcc g++ gawk autoconf automake python3-cmarkgfm
+    >     sudo apt install -y build-essential gawk autoconf automake python3-cmarkgfm
+    >     sudo apt install -y libibverbs-dev
     >     sudo apt install -y acl libacl1-dev
     >     sudo apt install -y attr libattr1-dev
     >     sudo apt install -y libxxhash-dev
@@ -189,7 +175,7 @@ Or run support/install_deps_ubuntu.sh
 After installing the various libraries, you need to configure, build, and
 install the source:
 
->      ./configure
+>      ./configure --enable-rdma
 >      make
 >      sudo make install
 
@@ -235,12 +221,6 @@ your make has a problem with this rule, you will see an error like this:
 
 You can change the "proto.h-tstamp" target in Makefile.in to list all the \*.c
 filenames explicitly in order to avoid this issue.
-
-## RPM notes
-
-Under packaging you will find .spec files for several distributions.
-The .spec file in packaging/lsb can be used for Linux systems that
-adhere to the Linux Standards Base (e.g., RedHat and others).
 
 ## HP-UX notes
 

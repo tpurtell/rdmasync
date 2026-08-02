@@ -2,7 +2,8 @@
 
 # install script for build dependencies for ubuntu/debian systems
 
-sudo apt install -y gcc g++ gawk autoconf automake python3-cmarkgfm
+sudo apt install -y build-essential gawk autoconf automake python3-cmarkgfm
+sudo apt install -y libibverbs-dev
 sudo apt install -y acl libacl1-dev
 sudo apt install -y attr libattr1-dev
 sudo apt install -y libxxhash-dev

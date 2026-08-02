@@ -148,35 +148,49 @@ See the [rdmasync manpage][0] for full semantics and restrictions.
 BUILDING AND INSTALLING
 -----------------------
 
-If you need to build rsync yourself, check out the [INSTALL][1] page for
-information on what libraries and packages you can use to get the maximum
-features in your build.
+Rdmasync's fast path requires Linux, a C toolchain, and the libibverbs headers
+and library.  On Debian or Ubuntu, including arm64 Spark systems, install the
+minimal build dependencies with:
 
-[1]: https://github.com/RsyncProject/rsync/blob/master/INSTALL.md
+```sh
+sudo apt update
+sudo apt install build-essential libibverbs-dev
+```
 
-SETUP
------
+Then configure a lean RDMA build from the checkout:
 
-Rsync normally uses ssh or rsh for communication with remote systems.
-It does not need to be setuid and requires no special privileges for
-installation.  You must, however, have a working ssh or rsh system.
-Using ssh is recommended for its security features.
+```sh
+./configure --enable-rdma --disable-md2man \
+  --disable-openssl --disable-xxhash --disable-zstd --disable-lz4
+make -j"$(nproc)"
+make check
+```
 
-Alternatively, rsync can run in `daemon' mode, listening on a socket.
-This is generally used for public file distribution, although
-authentication and access control are available.
+`--enable-rdma` is intentional: configuration fails instead of silently
+building without the RDMA transport when libibverbs is unavailable.  The
+disabled options above are optional rsync checksum, compression, and manpage
+generation integrations; none is required by rdmasync's RDMA data path.
 
-To install rsync, first run the "configure" script.  This will create a
-Makefile and config.h appropriate for your system.  Then type "make".
+For a system-wide installation:
 
-Note that on some systems you will have to force configure not to use
-gcc because gcc may not support some features (such as 64 bit file
-offsets) that your system may support.  Set the environment variable CC
-to the name of your native compiler before running configure in this
-case.
+```sh
+sudo make install
+```
 
-Once built put a copy of rdmasync in your search path on the local and
-remote systems (or use "make install").  That's it!
+For the per-user installation commonly used on development hosts and Sparks:
+
+```sh
+install -Dm755 rdmasync "$HOME/.local/bin/rdmasync"
+```
+
+Build and install the native binary on both endpoints.  The same commands
+build amd64 on raptor and arm64 on a Spark.  Ensure non-interactive SSH can
+find the remote binary, or use the `--rsync-path` form shown above.
+
+See [INSTALL.md][1] for the full inherited rsync configuration choices,
+optional libraries, platform notes, and prefix-controlled installation.
+
+[1]: INSTALL.md
 
 
 COPYRIGHT
