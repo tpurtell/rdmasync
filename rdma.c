@@ -1080,10 +1080,16 @@ static void show_active_config(void)
 		rprintf(FWARNING, "%s%s/%s->%s/%s", i ? " + " : "",
 			local->ibdev, local->address, remote->ibdev, remote->address);
 	}
-	rprintf(FWARNING, "; source=%s%s%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
-		: source_io_mode == SOURCE_IO_MAPPED ? "mapped" : "cached",
-		synthetic_file_size >= 0 ? ",synthetic" : "",
-		rdma_discard ? ",discard" : "");
+	rprintf(FWARNING, "; source=%s", source_io_mode == SOURCE_IO_UNCACHED ? "uncached"
+		: source_io_mode == SOURCE_IO_MAPPED ? "mapped" : "cached");
+	if (synthetic_file_size >= 0)
+		rprintf(FWARNING, ",synthetic");
+	else if (source_io_mode == SOURCE_IO_MAPPED)
+		rprintf(FWARNING, ",windowed");
+	else
+		rprintf(FWARNING, ",read=%s", do_big_num(disk_read_size, 0, NULL));
+	if (rdma_discard)
+		rprintf(FWARNING, ",discard");
 	rprintf(FWARNING, "\n");
 }
 

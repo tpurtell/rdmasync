@@ -62,9 +62,10 @@ less than 1 KiB at the selected depth.
 | 4 MiB × 4 | 131.24 (98.01–174.15) | 160.61 (157.29–172.46) |
 | 8 MiB × 2 | 151.16 (142.19–158.31) | 161.97 (157.87–171.78) |
 
-The selected 2 MiB × 8 point has the best median on both topologies.  It also
-leaves the 8 MiB source read window four times larger than an RDMA slot.  The
-same 2 MiB chunk at depth 4 halves registered memory to 16 MiB, but the Spark
+The selected 2 MiB × 8 point has the best median on both topologies.  At this
+revision it used the provisional 8 MiB source window; the separate source-I/O
+sweep later selected a 2 MiB default.  The same 2 MiB chunk at depth 4 halves
+registered memory to 16 MiB, but the Spark
 median drops from 167.71 to 117.04 Gb/s because its control/credit window is
 too short.  Additional depth beyond 8 did not justify more memory.
 
@@ -106,4 +107,3 @@ On this fabric they substantially reduce message count while preserving enough
 receive credit.  Further progress toward the raw 196 Gb/s Spark ceiling needs
 parallel per-path CPU work or a lower-copy design; increasing the ring alone is
 not supported by these measurements.
-

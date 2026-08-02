@@ -1,0 +1,11 @@
+host,mode,block_size,rep,seconds,user_seconds,sys_seconds,max_rss_kib
+raptor,direct,2M,1,3.37,0.00,0.43,9388
+raptor,direct,2M,2,3.37,0.00,0.49,9372
+raptor,direct,2M,3,3.37,0.00,0.47,8860
+raptor,direct,2M,4,3.36,0.00,0.42,9416
+raptor,direct,2M,5,3.37,0.00,0.49,9384
+ostrich,direct,2M,1,5.43,0.00,1.99,3592
+ostrich,direct,2M,2,5.33,0.00,1.90,3588
+ostrich,direct,2M,3,5.35,0.00,1.99,3592
+ostrich,direct,2M,4,5.27,0.00,1.57,3592
+ostrich,direct,2M,5,5.35,0.00,2.00,3660

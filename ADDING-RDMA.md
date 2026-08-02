@@ -63,7 +63,7 @@ rsync multiplexing:
 
 1. The client sends its requested policy and tuning values over SSH.
 2. Each side enumerates active Ethernet-link-layer verbs ports and associates
-   them with usable IPv4/IPv6 netdevices and GIDs.
+   them with usable IPv4 netdevices and RoCE-v2 GIDs.
 3. The remote side opens one TCP bootstrap listener per candidate path and
    returns endpoint records over SSH.  A random per-process connection cookie
    sent only on the SSH control plane associates incoming bootstrap sockets
@@ -147,8 +147,9 @@ rdmasync: warning: RDMA unavailable on peer; using rsync-over-SSH
 ```
 
 The config line follows rsync's quiet level unless explicitly overridden by
-`--rdma-show-config` or `--rdma-no-config`.  Warnings are not suppressed by the
-config-display options.
+`--rdma-show-config` or `--rdma-no-config`.  Forced display also reports final
+RDMA data bytes, elapsed time, throughput, and message count.  Warnings are not
+suppressed by the config-display options.
 
 The source-file access policy is independent of whether RDMA activates:
 
@@ -193,8 +194,8 @@ The transport sweep recorded in
 | RDMA chunk size | 2 MiB | |
 | queue depth | 8 per rail | 32 MiB payload plus headers |
 | rails | auto (maximum 2) | |
-| disk read size | 8 MiB | one reusable staging region |
-| source I/O | cached | retained pending storage-path results |
+| disk read size | 2 MiB | one reusable staging region |
+| source I/O | cached | best safe cross-platform result |
 
 The tuning goal is the smallest queue and chunk combination that reaches the
 throughput plateau.  Increasing registered memory after throughput is within

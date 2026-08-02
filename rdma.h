@@ -17,7 +17,7 @@ enum source_io_mode {
 
 #define RDMA_DEFAULT_CHUNK_SIZE (2 * 1024 * 1024)
 #define RDMA_DEFAULT_QUEUE_DEPTH 8
-#define RDMA_DEFAULT_DISK_READ_SIZE (8 * 1024 * 1024)
+#define RDMA_DEFAULT_DISK_READ_SIZE (2 * 1024 * 1024)
 
 extern int rdma_policy;
 extern int rdma_requested_rails;

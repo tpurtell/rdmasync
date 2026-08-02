@@ -2293,7 +2293,8 @@ expand it.
     configuration.  Ordinarily it is shown for non-quiet commands and hidden
     by [`--quiet`](#opt).  `--rdma-show-config` always shows it;
     `--rdma-no-config` hides it.  Neither option suppresses fallback or data
-    path failure warnings.
+    path failure warnings.  The forced display also prints a final byte,
+    elapsed-time, throughput, and message-count line for the RDMA data path.
 
 0.  `--cached`, `--uncached`, `--mapped`
 
@@ -2311,7 +2312,7 @@ expand it.
 0.  `--disk-read-size=SIZE`
 
     Set the source read/staging window for cached and uncached modes.  The
-    initial default is 8 MiB.  The option is accepted with `--mapped` for
+    measured default is 2 MiB.  The option is accepted with `--mapped` for
     scripting consistency but does not alter mapped-window semantics.
 
 0.  `--synthetic-file-data=SIZE`
