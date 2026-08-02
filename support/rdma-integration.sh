@@ -78,6 +78,8 @@ run_copy()
 
 dd if=/dev/urandom of="$src" bs=1M count=16 status=none \
 	|| fail "cannot create test source"
+dd if=/dev/urandom of="$src" bs=37 count=1 oflag=append conv=notrunc status=none \
+	|| fail "cannot append an unaligned final RDMA frame"
 
 normal=$remote_base-normal
 run_copy "$normal" env "$local_rsync" -aW --rdma=required --rdma-show-config \
@@ -95,6 +97,14 @@ fi
 one=$remote_base-one
 run_copy "$one" env "$local_rsync" -aW --rdma=required --rdma-rails=1 \
 	--rsync-path="$remote_rsync" "$src" "$host:$one"
+
+# Keep more DATA WRs than ring slots so EOF follows slot reuse, then verify the
+# partial final frame.  This guards against allocating an unused EOF slot or
+# overwriting a still-pending final DATA WR.
+last_frame=$remote_base-last-frame
+run_copy "$last_frame" env "$local_rsync" -aW --rdma=required \
+	--rdma-queue-depth=2 --rdma-chunk-size=2M \
+	--rsync-path="$remote_rsync" "$src" "$host:$last_frame"
 
 enumeration=$remote_base-enumeration
 run_copy "$enumeration" env "$local_rsync" -aW --rdma=auto \
@@ -212,4 +222,4 @@ wait_remote_gone "$cancel_target" || fail "remote rsync survived cancellation"
 ssh "$host" test ! -e "$cancel_target" \
 	|| fail "cancelled discard unexpectedly created its destination"
 
-echo "rdma-integration: opt-in diagnostics, activation, one-rail, fallback, post-data failure, SSH death, and cancellation verified"
+echo "rdma-integration: opt-in diagnostics, activation, one-rail, final-frame reuse, fallback, post-data failure, SSH death, and cancellation verified"

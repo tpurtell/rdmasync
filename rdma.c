@@ -1231,6 +1231,11 @@ static int post_data_send(struct rdma_path *path, const char *buf,
 		}
 		path->outstanding--;
 	}
+	/* Every SEND is signaled and RC completions are ordered, so the completion
+	 * above releases exactly the oldest ring slot: next_slot % depth.  Advance
+	 * next_slot only for a DATA WR that we are about to post.  In particular,
+	 * EOF and teardown must never consume or rewrite a slot; cleanup drains all
+	 * posted WRs before destroying the ring. */
 	slot = path->next_slot++ % rdma_queue_depth;
 	header = (struct rdma_data_header *)(path->ring + path->stride * slot);
 	encode_header(header, RDMA_DATA_MAGIC, seq, len);

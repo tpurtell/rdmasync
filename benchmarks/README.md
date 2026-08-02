@@ -18,6 +18,9 @@ alternatives, and links to their raw CSV data.
    death, SIGINT, process, MR, one-rail, and old-peer evidence.
 7. `RDMASYNC-CHECKSUM-DEFAULT.md` — rationale and compatibility rules for
    making checksum `none` the rdmasync application default.
+8. `RDMA-QUEUE-REVALIDATION.md` — clean follow-up prompted by rdmapipe;
+   confirms that rdmasync's SSH token stream still needs 2 MiB × depth 8 and
+   rejects copying rdmapipe's shallower queue directly.
 
 Headline ceilings and selected defaults:
 
