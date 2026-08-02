@@ -24,7 +24,7 @@ CAfile = /etc/ssl/certs/ca-certificates.crt
 #verify = 3
 #CAfile = /etc/rsync-ssl/certs/allowed-clients.cert.pem
 
-exec = @bindir@/rsync
+exec = @bindir@/rdmasync
 # You can either share the same config as a normal daemon, or specify a separate config:
-execargs = rsync --server --daemon .
-#execargs = rsync --server --daemon --config=/etc/rsync-ssl/rsyncd.conf .
+execargs = rdmasync --server --daemon .
+#execargs = rdmasync --server --daemon --config=/etc/rsync-ssl/rsyncd.conf .

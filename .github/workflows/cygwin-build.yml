@@ -37,7 +37,7 @@ jobs:
     - name: install
       run: bash -c 'make install'
     - name: info
-      run: bash -c '/usr/local/bin/rsync --version'
+      run: bash -c '/usr/local/bin/rdmasync --version'
     - name: check
       # chown-fake / devices-fake / xattrs / xattrs-hlink now RUN on Cygwin
       # (rsyncfns.py drives xattrs via getfattr/setfattr from the `attr`
@@ -50,7 +50,7 @@ jobs:
     - name: check (TCP daemon transport)
       # Second run with daemon tests over a real loopback rsyncd; the default
       # 'make check' above uses the secure stdio-pipe transport.
-      run: bash -c './runtests.py --rsync-bin=`pwd`/rsync.exe --use-tcp -j 8'
+      run: bash -c './runtests.py --rsync-bin=`pwd`/rdmasync.exe --use-tcp -j 8'
     - name: ssl file list
       run: bash -c 'PATH="/usr/local/bin:$PATH" rsync-ssl --no-motd download.samba.org::rsyncftp/ || true'
     - name: save artifact
@@ -59,7 +59,7 @@ jobs:
         retention-days: 45
         name: cygwin-bin
         path: |
-          rsync.exe
+          rdmasync.exe
           rsync-ssl
           rsync.1
           rsync-ssl.1

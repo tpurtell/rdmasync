@@ -7,7 +7,7 @@ service rsync
 	socket_type     = stream
 	wait            = no
 	user            = root
-	server          = /usr/bin/rsync
+	server          = /usr/bin/rdmasync
 	server_args     = --daemon
 	log_on_failure  += USERID
 }

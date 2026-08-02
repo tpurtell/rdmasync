@@ -190,11 +190,11 @@ if test x"$with_secluded_args" = x"yes"; then
 fi
 
 AC_ARG_WITH(rsync-path,
-	AS_HELP_STRING([--with-rsync-path=PATH],[set default --rsync-path to PATH (default: rsync)]),
+	AS_HELP_STRING([--with-rsync-path=PATH],[set default --rsync-path to PATH (default: rdmasync)]),
 	[ RSYNC_PATH="$with_rsync_path" ],
-	[ RSYNC_PATH="rsync" ])
+	[ RSYNC_PATH="rdmasync" ])
 
-AC_DEFINE_UNQUOTED(RSYNC_PATH, "$RSYNC_PATH", [location of rsync on remote machine])
+AC_DEFINE_UNQUOTED(RSYNC_PATH, "$RSYNC_PATH", [location of rdmasync on remote machine])
 
 AC_ARG_WITH(rsyncd-conf,
 	AS_HELP_STRING([--with-rsyncd-conf=PATH],[set configuration file for rsync server to PATH (default: /etc/rsyncd.conf)]),

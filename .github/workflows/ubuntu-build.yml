@@ -39,10 +39,10 @@ jobs:
         make install-all DESTDIR="$tmp"
 
         for path in \
-          /usr/local/bin/rsync \
+          /usr/local/bin/rdmasync \
           /usr/local/bin/rsync-ssl \
           /usr/local/bin/rrsync \
-          /usr/local/share/man/man1/rsync.1 \
+          /usr/local/share/man/man1/rdmasync.1 \
           /usr/local/share/man/man1/rsync-ssl.1 \
           /usr/local/share/man/man1/rrsync.1 \
           /usr/local/share/man/man5/rsyncd.conf.5 \
@@ -61,7 +61,7 @@ jobs:
     - name: install
       run: sudo make install
     - name: info
-      run: rsync --version
+      run: rdmasync --version
     - name: check
       run: sudo RSYNC_EXPECT_SKIPPED=crtimes,daemon-access-ip,daemon-chroot-acl,proxy-response-line-too-long,recv-discard-nullderef make check
     - name: check30
@@ -73,7 +73,7 @@ jobs:
       # 'make check' above uses the secure stdio-pipe transport (no listening
       # sockets); this run exercises the real TCP accept/auth path. Skip-set
       # is env-dependent here (chroot-acl), so leave RSYNC_EXPECT_SKIPPED unset.
-      run: sudo ./runtests.py --rsync-bin="$PWD/rsync" --use-tcp -j 8
+      run: sudo ./runtests.py --rsync-bin="$PWD/rdmasync" --use-tcp -j 8
     - name: ssl file list
       run: rsync-ssl --no-motd download.samba.org::rsyncftp/ || true
     - name: save artifact
@@ -82,7 +82,7 @@ jobs:
         retention-days: 45
         name: ubuntu-bin
         path: |
-          rsync
+          rdmasync
           rsync-ssl
           rsync.1
           rsync-ssl.1

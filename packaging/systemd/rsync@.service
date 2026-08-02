@@ -3,7 +3,7 @@ Description=fast remote file copy program daemon
 After=network.target
 
 [Service]
-ExecStart=-/usr/bin/rsync --daemon
+ExecStart=-/usr/bin/rdmasync --daemon
 StandardInput=socket
 StandardOutput=inherit
 StandardError=journal

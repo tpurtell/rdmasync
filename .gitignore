@@ -33,6 +33,7 @@ aclocal.m4
 /gists
 /gmon.out
 /rsync
+/rdmasync
 /stunnel-rsyncd.conf
 /shconfig
 /git-version.h

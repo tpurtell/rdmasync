@@ -112,7 +112,7 @@ PUSH_EXCLUDES = [
     "configure.sh", "config.h.in", "aclocal.m4", "proto.h", "git-version.h",
     "/rsync.1", "/rsync-ssl.1", "/rsyncd.conf.5", "/rrsync.1",
     "*.o", "*.exe", "__pycache__", "*.pyc", "/testtmp",
-    "/rsync", "/tls", "/getgroups", "/getfsdev", "/trimslash", "/wildtest",
+    "/rsync", "/rdmasync", "/tls", "/getgroups", "/getfsdev", "/trimslash", "/wildtest",
     "/testrun", "/simdtest", "/t_unsafe", "/t_chmod_secure", "/t_rename_secure",
     "/t_symlink_secure", "/t_secure_relpath",
 ]

@@ -39,7 +39,7 @@ jobs:
     - name: install
       run: sudo make install
     - name: info
-      run: rsync --version
+      run: rdmasync --version
     - name: check
       # chown-fake / devices-fake / xattrs / xattrs-hlink now RUN on macOS
       # (rsyncfns.py drives xattrs via the `xattr` command), verified on a
@@ -48,7 +48,7 @@ jobs:
     - name: check (TCP daemon transport)
       # Second run with daemon tests over a real loopback rsyncd; the default
       # 'make check' above uses the secure stdio-pipe transport.
-      run: sudo ./runtests.py --rsync-bin="$PWD/rsync" --use-tcp -j 8
+      run: sudo ./runtests.py --rsync-bin="$PWD/rdmasync" --use-tcp -j 8
     - name: ssl file list
       run: rsync-ssl --no-motd download.samba.org::rsyncftp/ || true
     - name: save artifact
@@ -57,7 +57,7 @@ jobs:
         retention-days: 45
         name: macos-bin
         path: |
-          rsync
+          rdmasync
           rsync-ssl
           rsync.1
           rsync-ssl.1

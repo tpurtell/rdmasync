@@ -488,7 +488,7 @@ has its own detailed description later in this manpage.
 --one-file-system, -x    don't cross filesystem boundaries
 --block-size=SIZE, -B    force a fixed checksum block-size
 --rsh=COMMAND, -e        specify the remote shell to use
---rsync-path=PROGRAM     specify the rsync to run on remote machine
+--rsync-path=PROGRAM     specify the rdmasync to run on remote machine
 --rdma=MODE              use RDMA automatically or require it
 --no-rdma                disable RDMA negotiation
 --rdma-rails=auto|1|2    choose the number of RDMA paths
@@ -1822,7 +1822,7 @@ expand it.
 
     The checksum options that you may be able to use are:
 
-    - `auto` (the default automatic choice)
+    - `auto` (the upstream-compatible automatic choice)
     - `xxh128`
     - `xxh3`
     - `xxh64` (aka `xxhash`)
@@ -1839,8 +1839,15 @@ expand it.
     transferred data.  If "none" is specified for the second (or only) name,
     the [`--checksum`](#opt) option cannot be used.
 
-    The "auto" option is the default, where rsync bases its algorithm choice on
-    a negotiation between the client and the server as follows:
+    Rdmasync defaults to "none" when no checksum-affecting option is present.
+    This forces whole-file transfer and avoids an implicit per-byte checksum on
+    high-speed copies.  An explicit [`--checksum`](#opt) (`-c`),
+    [`--no-whole-file`](#opt), append mode, `--checksum-choice=auto`, batch
+    mode, or a non-empty `RSYNC_CHECKSUM_LIST` opts back into automatic
+    checksum negotiation.  An explicitly named algorithm is honored as usual.
+
+    With "auto", rsync bases its algorithm choice on a negotiation between the
+    client and the server as follows:
 
     When both sides of the transfer are at least 3.2.0, rsync chooses the first
     algorithm in the client's list of choices that is also in the server's list
@@ -2218,8 +2225,9 @@ expand it.
 0.  `--rsync-path=PROGRAM`
 
     Use this to specify what program is to be run on the remote machine to
-    start-up rsync.  Often used when rsync is not in the default remote-shell's
-    path (e.g. `--rsync-path=/usr/local/bin/rsync`).  Note that PROGRAM is run
+    start-up rdmasync.  The default is `rdmasync`.  This option is often used
+    when rdmasync is not in the default remote shell's path (e.g.
+    `--rsync-path=/usr/local/bin/rdmasync`).  Note that PROGRAM is run
     with the help of a shell, so it can be any program, script, or command
     sequence you'd care to run, so long as it does not corrupt the standard-in
     & standard-out that rsync is using to communicate.
@@ -2227,7 +2235,7 @@ expand it.
     One tricky example is to set a different default directory on the remote
     machine for use with the [`--relative`](#opt) option.  For instance:
 
-    >     rsync -avR --rsync-path="cd /a/b && rsync" host:c/d /e/
+    >     rdmasync -avR --rsync-path="cd /a/b && rdmasync" host:c/d /e/
 
 0.  `--rdma=MODE`, `--no-rdma`
 
@@ -2250,8 +2258,10 @@ expand it.
     or batch transfers.
 
     Rsync compression currently keeps literal data on SSH and reports that as
-    an RDMA fallback.  Rsync's own checksum options are unchanged.  The RDMA
-    transport adds neither encryption nor a payload checksum.
+    an RDMA fallback.  Rdmasync defaults its rsync transfer checksum to
+    `none`; `-c`, `--checksum-choice=auto`, or a named algorithm restores the
+    requested checksum behavior.  The RDMA transport itself adds neither
+    encryption nor a payload checksum.
 
 0.  `--rdma-rails=auto|1|2`
 
@@ -2337,8 +2347,9 @@ expand it.
     source and one destination, rejects `--remove-source-files`, and is reported
     as `discard` in the RDMA configuration line.  It can be combined with
     `--synthetic-file-data` to omit source I/O too.  The sender still honors
-    rsync's selected transfer checksum; specify `--checksum-choice=none`
-    explicitly when a test is intended to exclude that CPU work.
+    rsync's selected transfer checksum.  The rdmasync default is `none`; name
+    an algorithm explicitly when a benchmark is intended to include that CPU
+    work.
 
 0.  `--remote-option=OPTION`, `-M`
 

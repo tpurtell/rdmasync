@@ -85,21 +85,21 @@ jobs:
           # Generate the awk-built headers serially first so the parallel
           # build can't race on proto.h <- daemon-parm.h.
           make proto.h
-          make -j"$(nproc)" rsync
-          "$STRIP" rsync
+          make -j"$(nproc)" rdmasync
+          "$STRIP" rdmasync
 
       - name: Verify binary
         shell: bash
         run: |
           set -euo pipefail
-          file rsync
+          file rdmasync
           # Gate: must be a statically-linked executable (no interpreter).
-          file rsync | grep -q "statically linked"
-          if file rsync | grep -q "dynamically linked"; then
+          file rdmasync | grep -q "statically linked"
+          if file rdmasync | grep -q "dynamically linked"; then
             echo "ERROR: binary is not static" >&2; exit 1
           fi
           # Best-effort: confirm it actually runs under qemu-user.
-          ${{ matrix.qemu }} ./rsync --version | head -3 || \
+          ${{ matrix.qemu }} ./rdmasync --version | head -3 || \
             echo "WARNING: qemu smoke test did not run cleanly (check on a real device)"
 
       - name: Package
@@ -107,11 +107,11 @@ jobs:
         run: |
           set -euo pipefail
           VER=$(sed -n 's/.*RSYNC_VERSION "\([^"]*\)".*/\1/p' version.h)
-          out="rsync-${VER}-android-${{ matrix.abi }}"
+          out="rdmasync-${VER}-android-${{ matrix.abi }}"
           mkdir -p dist
-          cp rsync "dist/$out"
+          cp rdmasync "dist/$out"
           ( cd dist && sha256sum "$out" > "$out.sha256" )
-          echo "ARTIFACT_NAME=rsync-android-${{ matrix.abi }}" >>"$GITHUB_ENV"
+          echo "ARTIFACT_NAME=rdmasync-android-${{ matrix.abi }}" >>"$GITHUB_ENV"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

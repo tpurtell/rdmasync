@@ -16,6 +16,8 @@ alternatives, and links to their raw CSV data.
    transfers with normal rsync semantics and checksum bottleneck analysis.
 6. `RDMA-FAILURE-AND-CLEANUP.md` — setup fallback, post-data failure, SSH
    death, SIGINT, process, MR, one-rail, and old-peer evidence.
+7. `RDMASYNC-CHECKSUM-DEFAULT.md` — rationale and compatibility rules for
+   making checksum `none` the rdmasync application default.
 
 Headline ceilings and selected defaults:
 
@@ -28,7 +30,8 @@ Headline ceilings and selected defaults:
 | registered payload memory | 16 MiB one rail; 32 MiB two rails |
 | defaults | auto rails, 2 MiB chunk, depth 8, cached 2 MiB reads |
 
-Synthetic/discard and source/destination isolation use the benchmark command's
-explicit `--checksum-choice=none`; rdmasync never selects it automatically.
-The end-to-end report separately measures the normal rsync MD5 checksum and
-shows its much lower CPU-bound rate on the available builds.
+The recorded synthetic/discard commands used explicit
+`--checksum-choice=none`.  The end-to-end report compared it with the former
+MD5 default and demonstrated the CPU bottleneck that motivated making `none`
+the current rdmasync default.  These historical command lines and measurements
+remain unchanged; `--checksum-choice=auto` restores upstream negotiation.

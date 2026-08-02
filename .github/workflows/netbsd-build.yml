@@ -34,9 +34,9 @@ jobs:
           uname -a
           ./configure --with-rrsync --disable-zstd --disable-md2man --disable-xxhash --disable-lz4
           make
-          ./rsync --version
+          ./rdmasync --version
           make check
-          ./runtests.py --rsync-bin=`pwd`/rsync --use-tcp -j 8
+          ./runtests.py --rsync-bin=`pwd`/rdmasync --use-tcp -j 8
           ./rsync-ssl --no-motd download.samba.org::rsyncftp/ || true
     - name: save artifact
       uses: actions/upload-artifact@v4
@@ -44,7 +44,7 @@ jobs:
         retention-days: 45
         name: netbsd-bin
         path: |
-          rsync
+          rdmasync
           rsync-ssl
           rsync.1
           rsync-ssl.1

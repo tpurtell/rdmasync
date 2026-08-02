@@ -1,3 +1,17 @@
+WHAT IS RDMASYNC?
+-----------------
+
+Rdmasync is an rsync-compatible fork that builds and installs as
+`rdmasync`.  For remote-shell transfers it looks for `rdmasync` on the peer by
+default and automatically uses the negotiated RDMA bulk-data path when the
+fabric is available.  Install it on both endpoints, or use `--rsync-path` to
+name a non-standard installation path.
+
+Rdmasync defaults the transfer checksum to `none` so high-speed whole-file
+copies are not CPU-limited by an implicit digest.  Use `-c`,
+`--checksum-choice=auto`, or an explicit checksum algorithm when checksum or
+delta-transfer behavior is wanted.
+
 WHAT IS RSYNC?
 --------------
 
@@ -21,7 +35,7 @@ USAGE
 Basically you use rsync just like scp, but rsync has many additional
 options.  To get a complete list of supported options type:
 
-    rsync --help
+    rdmasync --help
 
 See the [manpage][0] for more detailed information.
 
@@ -57,7 +71,7 @@ offsets) that your system may support.  Set the environment variable CC
 to the name of your native compiler before running configure in this
 case.
 
-Once built put a copy of rsync in your search path on the local and
+Once built put a copy of rdmasync in your search path on the local and
 remote systems (or use "make install").  That's it!
 
 

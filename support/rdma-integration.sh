@@ -10,7 +10,7 @@ fi
 
 host=$1
 remote_rsync=$2
-local_rsync=${3:-./rsync}
+local_rsync=${3:-./rdmasync}
 expected_rails=${RDMASYNC_EXPECT_RAILS:-1}
 remote_base=/tmp/rdmasync-integration-$(id -u)-$$
 tmpdir=$(mktemp -d /tmp/rdmasync-integration.XXXXXX) || exit 1

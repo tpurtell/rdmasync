@@ -69,9 +69,9 @@ When run via inetd you should add a line like this to /etc/services:
 
 and a single line something like this to /etc/inetd.conf:
 
->     rsync   stream  tcp     nowait  root   @BINDIR@/rsync rsyncd --daemon
+>     rsync   stream  tcp     nowait  root   @BINDIR@/rdmasync rdmasync --daemon
 
-Replace "@BINDIR@/rsync" with the path to where you have rsync installed on
+Replace "@BINDIR@/rdmasync" with the path to where you have rdmasync installed on
 your system.  You will then need to send inetd a HUP signal to tell it to
 reread its config file.
 

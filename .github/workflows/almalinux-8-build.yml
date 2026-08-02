@@ -56,7 +56,7 @@ jobs:
     - name: make
       run: make
     - name: info
-      run: ./rsync --version
+      run: ./rdmasync --version
     - name: check
       # In the container we already run as root, so no sudo. The
       # crtimes-not-supported skip matches the other Linux jobs;
@@ -65,7 +65,7 @@ jobs:
       run: RSYNC_EXPECT_SKIPPED=crtimes,daemon-access-ip,daemon-chroot-acl,proxy-response-line-too-long,recv-discard-nullderef make check
     - name: check (TCP daemon transport)
       # Second run exercising the real loopback-TCP daemon path.
-      run: ./runtests.py --rsync-bin="$PWD/rsync" --use-tcp -j 8
+      run: ./runtests.py --rsync-bin="$PWD/rdmasync" --use-tcp -j 8
     - name: ssl file list
       run: ./rsync-ssl --no-motd download.samba.org::rsyncftp/ || true
     - name: save artifact
@@ -74,7 +74,7 @@ jobs:
         retention-days: 45
         name: almalinux-8-bin
         path: |
-          rsync
+          rdmasync
           rsync-ssl
           rsync.1
           rsync-ssl.1

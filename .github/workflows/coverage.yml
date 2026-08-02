@@ -33,7 +33,7 @@ jobs:
     - name: make
       run: make
     - name: info
-      run: rsync --version
+      run: rdmasync --version
     # Two coverage runs: the default pipe transport, then a second pass over a
     # real loopback rsyncd (--use-tcp) which also exercises the require_tcp-only
     # tests. gcovr's --print-summary line/branch/decision totals go to the step

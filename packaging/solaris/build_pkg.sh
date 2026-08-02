@@ -38,7 +38,7 @@ mkdir -p $FAKE_ROOT/doc/rsync
 mkdir -p $FAKE_ROOT/man/man1
 mkdir -p $FAKE_ROOT/man/man5
 
-cp ../../../rsync $FAKE_ROOT/bin/rsync
+cp ../../../rdmasync $FAKE_ROOT/bin/rdmasync
 cp ../../../rsync.1 $FAKE_ROOT/man/man1/rsync.1
 cp ../../../rsyncd.conf.5 $FAKE_ROOT/man/man5/rsyncd.conf.5
 cp ../../../README.md $FAKE_ROOT/doc/rsync/README.md
@@ -65,7 +65,7 @@ cat > $FAKE_ROOT/prototype << EOFPROTO
 i copyright=COPYING
 i pkginfo=pkginfo
 d none bin 0755 bin bin
-f none bin/rsync 0755 bin bin
+f none bin/rdmasync 0755 bin bin
 d none doc 0755 bin bin
 d none doc/$NAME 0755 bin bin
 f none doc/$NAME/README.md 0644 bin bin
@@ -91,4 +91,3 @@ cd ..
 
 # Comment this out if you want to see, which file structure has been created
 rm -rf $FAKE_ROOT
-

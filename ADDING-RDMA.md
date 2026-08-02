@@ -2,8 +2,12 @@
 
 ## Purpose
 
-`rdmasync` keeps rsync's command line, file-selection rules, delta algorithm,
-metadata handling, checksums, and SSH control connection.  When both ends of
+`rdmasync` keeps rsync's command line, file-selection rules, metadata handling,
+explicit checksum choices, and SSH control connection.  It builds as
+`rdmasync` and selects `rdmasync` as the default remote program.  The default
+transfer checksum is `none`; users can opt into rsync's automatic checksum and
+delta algorithm with `-c`, `--checksum-choice=auto`, or `--no-whole-file`.
+When both ends of
 an SSH transfer can reach each other over an RDMA fabric, literal file data is
 automatically moved on an unencrypted libibverbs data plane.  If negotiation
 or setup fails before any literal data is diverted, the transfer continues on
@@ -33,7 +37,8 @@ directions.  Native builds are required on amd64 raptor and arm64 sparks.
 4. SSH remains the authenticated control plane.  Detection, option exchange,
    endpoint exchange, and failure reporting happen before rsync multiplexing.
 5. No encryption, digest, checksum, or copy is added to the bulk data plane.
-   Rsync-requested checksums remain unchanged.
+   Explicitly requested rsync checksums remain unchanged.  The application
+   default is deliberately `none` to remove the measured CPU bottleneck.
 6. Fallback is allowed only before the first diverted literal byte.  A data
    plane failure after that point is a transfer error; silently changing paths
    mid-token could corrupt protocol framing.
@@ -330,4 +335,6 @@ and sender are each limited by one busy rsync process.  Raptor's independent
 verbs ceiling was only 159.74 Gb/s on this run, so claiming 200 Gb/s there
 would be unsupported.  Source NVMe, destination persistence, and the normal
 MD5 transfer checksum impose lower end-to-end ceilings quantified in their
-respective reports.
+respective reports.  A subsequent product-default change makes checksum
+`none` the ordinary rdmasync behavior; automatic and named checksums remain
+available explicitly.

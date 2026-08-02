@@ -40,7 +40,7 @@ jobs:
     - name: make
       run: make check-progs   # builds rsync + the test helper programs runtests.py needs
     - name: info
-      run: ./rsync --version
+      run: ./rdmasync --version
 
     # Run the whole suite under valgrind.  We gate on memory *errors* (uninit
     # reads, invalid read/write, bad frees, uninit syscall params), not leaks:

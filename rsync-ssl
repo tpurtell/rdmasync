@@ -26,7 +26,7 @@ function rsync_ssl_run {
 	;;
     esac
 
-    exec rsync --rsh="$0 --HELPER" "${@}"
+    exec rdmasync --rsh="$0 --HELPER" "${@}"
 }
 
 function rsync_ssl_helper {
@@ -131,8 +131,8 @@ function rsync_ssl_helper {
     hostname="$1"
     shift
 
-    if [[ -z "$hostname" || "$1" != rsync || "$2" != --server || "$3" != --daemon ]]; then
-	echo "Usage: rsync-ssl --HELPER HOSTNAME rsync --server --daemon ." 1>&2
+    if [[ -z "$hostname" || "$1" != rdmasync || "$2" != --server || "$3" != --daemon ]]; then
+	echo "Usage: rsync-ssl --HELPER HOSTNAME rdmasync --server --daemon ." 1>&2
 	exit 1
     fi
 
@@ -182,7 +182,7 @@ if [[ "$#" == 0 ]]; then
 fi
 
 if [[ "$1" = --help || "$1" = -h ]]; then
-    exec rsync --help
+    exec rdmasync --help
 fi
 
 if [[ "$1" == --HELPER ]]; then

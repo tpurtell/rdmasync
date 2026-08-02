@@ -86,7 +86,7 @@ def run_push(compress):
     basis = TODIR / f'{tag}.dat'    # daemon-side basis (old)
     source = src / f'{tag}.dat'     # client source (new)
     make_versions(basis, source)
-    opts = ['-a', '-v'] + (['-z'] if compress else [])
+    opts = ['-a', '-v', '--no-whole-file'] + (['-z'] if compress else [])
     sent, _ = peer_client(opts + [str(source), f'{url}test-to/'], tag)
     if not filecmp.cmp(source, basis, shallow=False):
         test_fail(f"{tag}: daemon-side file does not match source after push")
@@ -101,7 +101,7 @@ def run_pull(compress):
     served = FROMDIR / f'{tag}.dat'   # daemon module file (new)
     local = dst / f'{tag}.dat'        # client basis (old)
     make_versions(local, served)
-    opts = ['-a', '-v'] + (['-z'] if compress else [])
+    opts = ['-a', '-v', '--no-whole-file'] + (['-z'] if compress else [])
     _, received = peer_client(
         opts + [f'{url}test-from/{tag}.dat', str(dst) + '/'], tag)
     if not filecmp.cmp(served, local, shallow=False):

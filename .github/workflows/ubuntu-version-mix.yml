@@ -1,7 +1,7 @@
 name: Test rsync version mixing on Ubuntu
 
 # Runs the CURRENT test suite with two different rsync binaries: the freshly
-# built ./rsync as the client/driver, and a committed OLD static binary
+# built ./rdmasync as the client/driver, and a committed OLD static binary
 # (old_versions/rsync_<ver>) as the daemon / remote-shell peer. This exercises
 # real version mixing over the wire -- more convincing than --protocol forcing,
 # which only makes the current binary speak an old protocol.
@@ -54,7 +54,7 @@ jobs:
       # t_unsafe, ...) that runtests.py requires; plain `make` does not.
       run: make check-progs
     - name: info
-      run: ./rsync --version | head -1
+      run: ./rdmasync --version | head -1
     - name: version mixing (all peers, pipe + TCP transports)
       run: |
         rc=0
@@ -66,7 +66,7 @@ jobs:
             tcp=()
             [ "$transport" = tcp ] && tcp=(--use-tcp)
             echo "::group::$name ($transport): $("$peer" --version | head -1)"
-            if ! ./runtests.py --rsync-bin="$PWD/rsync" --rsync-bin2="$PWD/$peer" \
+            if ! ./runtests.py --rsync-bin="$PWD/rdmasync" --rsync-bin2="$PWD/$peer" \
                   --expect-result "$expect" "${tcp[@]}" -j 8; then
               echo "::error::version-mix failed: $name ($transport)"
               rc=1

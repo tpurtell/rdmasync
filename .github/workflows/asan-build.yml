@@ -56,17 +56,17 @@ jobs:
         LDFLAGS="-fsanitize=address,undefined" \
         ./configure --with-rrsync --disable-md2man
     - name: make
-      # check-progs builds rsync plus the test helper programs (tls, trimslash,
-      # t_unsafe, ...) that runtests.py requires; plain "make" builds only rsync
+      # check-progs builds rdmasync plus the test helper programs (tls, trimslash,
+      # t_unsafe, ...) that runtests.py requires; plain "make" builds only rdmasync
       # and runtests aborts on the missing helpers.
       run: make check-progs
     - name: info
-      run: ./rsync --version
+      run: ./rdmasync --version
     - name: check (stdio-pipe transport)
       # ASan+UBSan-instrumented coverage of the transfer, daemon, sender,
       # receiver and metadata paths over the default stdio-pipe transport.
-      run: ./runtests.py --rsync-bin="$PWD/rsync" -j8
+      run: ./runtests.py --rsync-bin="$PWD/rdmasync" -j8
     - name: check (TCP daemon transport)
       # --use-tcp also exercises the loopback rsyncd listener and the client's
       # TCP connection path.
-      run: ./runtests.py --rsync-bin="$PWD/rsync" --use-tcp -j8
+      run: ./runtests.py --rsync-bin="$PWD/rdmasync" --use-tcp -j8

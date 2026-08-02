@@ -207,6 +207,7 @@ size_t max_alloc = DEFAULT_MAX_ALLOC;
 char *max_alloc_arg;
 
 static int version_opt_cnt = 0;
+static int checksum_choice_explicit = 0;
 static int remote_option_alloc = 0;
 int remote_option_cnt = 0;
 const char **remote_options = NULL;
@@ -600,7 +601,7 @@ enum {OPT_SERVER = 1000, OPT_DAEMON, OPT_SENDER, OPT_EXCLUDE, OPT_EXCLUDE_FROM,
       OPT_OLD_COMPRESS, OPT_NEW_COMPRESS, OPT_NO_COMPRESS, OPT_OLD_ARGS,
       OPT_STOP_AFTER, OPT_STOP_AT, OPT_RDMA, OPT_RDMA_RAILS,
       OPT_RDMA_CHUNK_SIZE, OPT_CACHED, OPT_UNCACHED, OPT_MAPPED,
-      OPT_DISK_READ_SIZE, OPT_SYNTHETIC_FILE_DATA,
+      OPT_DISK_READ_SIZE, OPT_SYNTHETIC_FILE_DATA, OPT_CHECKSUM_CHOICE,
       OPT_REFUSED_BASE = 9000};
 
 static struct poptOption long_options[] = {
@@ -753,8 +754,8 @@ static struct poptOption long_options[] = {
   {"checksum",        'c', POPT_ARG_VAL,    &always_checksum, 1, 0, 0 },
   {"no-checksum",      0,  POPT_ARG_VAL,    &always_checksum, 0, 0, 0 },
   {"no-c",             0,  POPT_ARG_VAL,    &always_checksum, 0, 0, 0 },
-  {"checksum-choice",  0,  POPT_ARG_STRING, &checksum_choice, 0, 0, 0 },
-  {"cc",               0,  POPT_ARG_STRING, &checksum_choice, 0, 0, 0 },
+  {"checksum-choice",  0,  POPT_ARG_STRING, &checksum_choice, OPT_CHECKSUM_CHOICE, 0, 0 },
+  {"cc",               0,  POPT_ARG_STRING, &checksum_choice, OPT_CHECKSUM_CHOICE, 0, 0 },
   {"block-size",      'B', POPT_ARG_STRING, 0, OPT_BLOCK_SIZE, 0, 0 },
   {"compare-dest",     0,  POPT_ARG_STRING, 0, OPT_COMPARE_DEST, 0, 0 },
   {"copy-dest",        0,  POPT_ARG_STRING, 0, OPT_COPY_DEST, 0, 0 },
@@ -1524,6 +1525,10 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 			modify_window_set = 1;
 			break;
 
+		case OPT_CHECKSUM_CHOICE:
+			checksum_choice_explicit = 1;
+			break;
+
 		case OPT_FILTER:
 			parse_filter_str(&filter_list, poptGetOptArg(pc),
 					rule_template(0), 0);
@@ -2133,6 +2138,16 @@ int parse_arguments(int *argc_p, const char ***argv_p)
 			protect_args = 0;
 #endif
 		}
+	}
+
+	if (!am_server && !checksum_choice_explicit && !always_checksum
+	 && whole_file != 0 && !append_mode && !write_batch && !read_batch) {
+		const char *env_checksum_list = getenv("RSYNC_CHECKSUM_LIST");
+
+		while (env_checksum_list && isSpace(env_checksum_list))
+			env_checksum_list++;
+		if (!env_checksum_list || !*env_checksum_list)
+			checksum_choice = "none";
 	}
 
 	if (checksum_choice && strcasecmp(checksum_choice, "auto") != 0 && strcasecmp(checksum_choice, "auto,auto") != 0) {
@@ -2962,6 +2977,8 @@ void server_options(char **args, int *argc_p)
 
 	if (checksum_choice)
 		args[ac++] = safe_arg("--checksum-choice", checksum_choice);
+	else if (checksum_choice_explicit)
+		args[ac++] = "--checksum-choice=auto";
 
 	if (do_compression == CPRES_ZLIBX)
 		args[ac++] = "--new-compress";

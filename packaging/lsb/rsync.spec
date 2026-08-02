@@ -68,7 +68,7 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root)
 %doc COPYING NEWS.md README.md support/ tech_report.tex
 %config(noreplace) /etc/xinetd.d/rsync
-%{_prefix}/bin/rsync
+%{_prefix}/bin/rdmasync
 %{_prefix}/bin/rsync-ssl
 %{_mandir}/man1/rsync.1*
 %{_mandir}/man1/rsync-ssl.1*

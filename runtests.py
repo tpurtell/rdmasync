@@ -67,7 +67,7 @@ def parse_args():
                    help='Budget (seconds) a TOCTOU symlink-race test may spend '
                         'trying to win its race before concluding (default: 5)')
     p.add_argument('--rsync-bin', default=None, metavar='PATH',
-                   help='Path to rsync binary (default: ./rsync)')
+                   help='Path to rdmasync binary (default: ./rdmasync)')
     p.add_argument('--rsync-bin2', default=None, metavar='PATH',
                    help='Path to a second ("peer") rsync binary used for the '
                         'daemon side and remote-shell --rsync-path. Lets the '
@@ -396,7 +396,7 @@ def main():
     srcdir = args.srcdir or script_path
     if not srcdir or srcdir == '.':
         srcdir = tooldir
-    rsync_bin = args.rsync_bin or os.environ.get('rsync_bin') or os.path.join(tooldir, 'rsync')
+    rsync_bin = args.rsync_bin or os.environ.get('rsync_bin') or os.path.join(tooldir, 'rdmasync')
     # Absolutize: tests run with subprocess(cwd=TOOLDIR) below, so a relative
     # argv[0] would re-resolve against TOOLDIR rather than the runner's
     # invocation cwd, breaking --rsync-bin=../foo/rsync forms.  abspath()
