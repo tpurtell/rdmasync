@@ -1087,7 +1087,7 @@ static void show_active_config(void)
 	else if (source_io_mode == SOURCE_IO_MAPPED)
 		rprintf(FWARNING, ",windowed");
 	else
-		rprintf(FWARNING, ",read=%s", do_big_num(disk_read_size, 0, NULL));
+		rprintf(FWARNING, ",read=%s", do_big_num(disk_read_size, 3, NULL));
 	if (rdma_discard)
 		rprintf(FWARNING, ",discard");
 	rprintf(FWARNING, "\n");
@@ -1275,37 +1275,48 @@ static int begin_receive_message(struct rdma_path *path, uint64_t expected_seq)
 	return 0;
 }
 
-void rdma_recv_data(char *buf, size_t len)
+static void release_exhausted_receive(void)
 {
-	while (len) {
-		struct rdma_path *path = &transport.paths[transport.recv_seq % transport.rail_count];
-		size_t available, amount;
-		struct rdma_data_header *header;
-		if (path->current_recv_slot < 0
-		 && begin_receive_message(path, transport.recv_seq) < 0) {
-			rprintf(FERROR, "rdmasync: RDMA data receive failed after activation\n");
-			exit_cleanup(RERR_STREAMIO);
-		}
-		header = (struct rdma_data_header *)(path->ring
-			+ path->stride * path->current_recv_slot);
-		available = path->current_recv_length - path->current_recv_offset;
-		amount = MIN(len, available);
-		if (!rdma_discard)
-			memcpy(buf, (char *)(header + 1) + path->current_recv_offset, amount);
-		path->current_recv_offset += amount;
-		transport.data_bytes += amount;
-		stats.total_read += amount;
-		buf += amount;
-		len -= amount;
-		if (path->current_recv_offset == path->current_recv_length) {
-			if (post_receive_slot(path, path->current_recv_slot)) {
-				rprintf(FERROR, "rdmasync: failed to repost RDMA receive slot\n");
-				exit_cleanup(RERR_STREAMIO);
-			}
-			path->current_recv_slot = -1;
-			transport.recv_seq++;
-		}
+	struct rdma_path *path = &transport.paths[transport.recv_seq % transport.rail_count];
+
+	if (path->current_recv_slot < 0
+	 || path->current_recv_offset != path->current_recv_length)
+		return;
+	if (post_receive_slot(path, path->current_recv_slot)) {
+		rprintf(FERROR, "rdmasync: failed to repost RDMA receive slot\n");
+		exit_cleanup(RERR_STREAMIO);
 	}
+	path->current_recv_slot = -1;
+	transport.recv_seq++;
+}
+
+char *rdma_recv_data_ptr(size_t len)
+{
+	struct rdma_path *path;
+	struct rdma_data_header *header;
+	char *data;
+
+	/* The previous pointer remains valid until this call.  Only now is its
+	 * completed slot returned to the receive queue. */
+	release_exhausted_receive();
+	path = &transport.paths[transport.recv_seq % transport.rail_count];
+	if (path->current_recv_slot < 0
+	 && begin_receive_message(path, transport.recv_seq) < 0) {
+		rprintf(FERROR, "rdmasync: RDMA data receive failed after activation\n");
+		exit_cleanup(RERR_STREAMIO);
+	}
+	if (len > path->current_recv_length - path->current_recv_offset) {
+		rprintf(FERROR,
+			"rdmasync: RDMA literal crosses a negotiated message boundary\n");
+		exit_cleanup(RERR_PROTOCOL);
+	}
+	header = (struct rdma_data_header *)(path->ring
+		+ path->stride * path->current_recv_slot);
+	data = (char *)(header + 1) + path->current_recv_offset;
+	path->current_recv_offset += len;
+	transport.data_bytes += len;
+	stats.total_read += len;
+	return data;
 }
 
 void rdma_after_receiver_fork(int keep_transport)
@@ -1385,9 +1396,10 @@ void rdma_send_synthetic(UNUSED(OFF_T offset), UNUSED(size_t len))
 	exit_cleanup(RERR_STREAMIO);
 }
 
-void rdma_recv_data(UNUSED(char *buf), UNUSED(size_t len))
+char *rdma_recv_data_ptr(UNUSED(size_t len))
 {
 	rprintf(FERROR, "rdmasync: internal error: RDMA receive on inactive transport\n");
 	exit_cleanup(RERR_STREAMIO);
+	return NULL;
 }
 #endif

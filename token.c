@@ -286,9 +286,6 @@ static int32 simple_recv_token(int f, char **data)
 	static char *buf;
 	int32 n;
 
-	if (!buf)
-		buf = new_array(char, CHUNK_SIZE);
-
 	if (residue == 0) {
 		int32 i = read_int(f);
 		if (i <= 0)
@@ -300,13 +297,16 @@ static int32 simple_recv_token(int f, char **data)
 		residue = i;
 	}
 
-	*data = buf;
 	n = MIN(CHUNK_SIZE,residue);
 	residue -= n;
 	if (rdma_is_active())
-		rdma_recv_data(buf, n);
-	else
+		*data = rdma_recv_data_ptr(n);
+	else {
+		if (!buf)
+			buf = new_array(char, CHUNK_SIZE);
+		*data = buf;
 		read_buf(f,buf,n);
+	}
 	return n;
 }
 

@@ -1,0 +1,11 @@
+host,mode,block_size,rep,seconds,user_seconds,sys_seconds,max_rss_kib
+raptor,direct-write,2M,1,1.63,0.00,0.41,9300
+raptor,direct-write,2M,2,1.63,0.00,0.41,9392
+raptor,direct-write,2M,3,1.64,0.00,0.43,9368
+raptor,direct-write,2M,4,1.64,0.00,0.42,9404
+raptor,direct-write,2M,5,1.62,0.00,0.40,9400
+dodo,direct-write,2M,1,3.90,0.00,1.86,3548
+dodo,direct-write,2M,2,3.43,0.00,1.10,3692
+dodo,direct-write,2M,3,3.89,0.00,1.87,3692
+dodo,direct-write,2M,4,3.42,0.00,1.10,3552
+dodo,direct-write,2M,5,3.95,0.00,1.96,3692

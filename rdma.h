@@ -43,7 +43,7 @@ int rdma_literal_chunk_size(void);
 int rdma_control_flush_interval(void);
 void rdma_send_data(const char *buf, size_t len);
 void rdma_send_synthetic(OFF_T offset, size_t len);
-void rdma_recv_data(char *buf, size_t len);
+char *rdma_recv_data_ptr(size_t len);
 void rdma_after_receiver_fork(int keep_transport);
 void rdma_cleanup(void);
 
