@@ -62,4 +62,3 @@ Automatic mode must retain dual-path selection whenever both Spark paths are
 available, while accepting one candidate without error.  Performance results
 must be judged against the topology-specific ceilings above: 196.06 Gb/s for
 Spark-to-Spark and 159.74 Gb/s for this raptor-to-Spark run.
-
