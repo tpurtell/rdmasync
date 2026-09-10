@@ -1,6 +1,6 @@
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([rsync],[ ],[https://rsync.samba.org/bug-tracking.html])
+AC_INIT([rdmasync],[ ],[https://github.com/tpurtell/rdmasync/issues])
 
 AC_C_BIGENDIAN
 AC_HEADER_DIRENT
@@ -24,7 +24,7 @@ AC_PREREQ([2.69])
 
 PACKAGE_VERSION=`sed -n 's/.*RSYNC_VERSION.*"\(.*\)".*/\1/p' <$srcdir/version.h`
 
-AC_MSG_NOTICE([Configuring rsync $PACKAGE_VERSION])
+AC_MSG_NOTICE([Configuring rdmasync $PACKAGE_VERSION])
 
 LDFLAGS=${LDFLAGS-""}
 
