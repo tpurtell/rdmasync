@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Build a release archive from a committed revision, including generated files.
+set -euo pipefail
+revision=${1:-HEAD}
+output=${2:-$PWD}
+root=$(git rev-parse --show-toplevel)
+commit=$(git rev-parse "$revision^{commit}")
+version=$(git show "$commit:version.h" | sed -n 's/^#define RSYNC_VERSION "\(.*\)"/\1/p')
+mkdir -p "$output"
+output=$(cd "$output" && pwd)
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+mkdir "$scratch/generated" "$scratch/rdmasync-$version"
+git -C "$root" archive "$commit" | tar -x -C "$scratch/generated"
+git -C "$root" archive "$commit" | tar -x -C "$scratch/rdmasync-$version"
+cd "$scratch/generated"
+./prepare-source build
+# Configuration here only supplies paths for manual generation; consumers
+# configure and compile the released source for their own native architecture.
+./configure --prefix=/usr/local --disable-md2man --disable-rdma \
+  --disable-xxhash --disable-zstd --disable-lz4 --disable-openssl
+export SOURCE_DATE_EPOCH=$(git -C "$root" show -s --format=%ct "$commit")
+python3 ./md-convert rsync.1.md rsyncd.conf.5.md rsync-ssl.1.md
+cp configure.sh config.h.in aclocal.m4 rsync.1 rsyncd.conf.5 rsync-ssl.1 \
+  "$scratch/rdmasync-$version/"
+cd "$scratch"
+tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+  -cf - "rdmasync-$version" | gzip -n > "$output/rdmasync-$version.tar.gz"
+sha256sum "$output/rdmasync-$version.tar.gz"
