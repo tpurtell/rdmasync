@@ -16,7 +16,7 @@ if brew commands | grep -qx trust; then brew trust --tap tpurtell/local-ai; fi
 brew install tpurtell/local-ai/rdmasync
 ```
 
-The tap enables RDMA and builds natively on each architecture. Install it on
+The tap enables RDMA and supplies native ARM64 and AMD64 bottles. Install it on
 both endpoints; use `--rsync-path=/home/linuxbrew/.linuxbrew/bin/rdmasync` if
 Homebrew is absent from the remote non-interactive PATH.
 
