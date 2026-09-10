@@ -7,6 +7,19 @@ default and automatically uses the negotiated RDMA bulk-data path when the
 fabric is available.  Install it on both endpoints, or use `--rsync-path` to
 name a non-standard installation path.
 
+Stable Linux ARM64 (including DGX Spark) and AMD64 releases are available
+through the [Local AI Homebrew tap](https://github.com/tpurtell/local-ai-tap#readme):
+
+```sh
+brew tap tpurtell/local-ai https://github.com/tpurtell/local-ai-tap.git
+if brew commands | grep -qx trust; then brew trust --tap tpurtell/local-ai; fi
+brew install tpurtell/local-ai/rdmasync
+```
+
+The tap enables RDMA and builds natively on each architecture. Install it on
+both endpoints; use `--rsync-path=/home/linuxbrew/.linuxbrew/bin/rdmasync` if
+Homebrew is absent from the remote non-interactive PATH.
+
 Rdmasync defaults the transfer checksum to `none` so high-speed whole-file
 copies are not CPU-limited by an implicit digest.  Use `-c`,
 `--checksum-choice=auto`, or an explicit checksum algorithm when checksum or
